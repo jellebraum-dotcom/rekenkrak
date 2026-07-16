@@ -305,3 +305,10 @@
   .eq--split .spl__lines{width:170px;height:36px}
   .eq--split .spl__legs{gap:44px}
 }
+
+/* Altijd het ontworpen (lichte) kleurenschema — geen automatische donkere modus */
+:root{color-scheme:only light}
+
+/* nette melding in het QR-vak als er iets schort */
+.qrerr{font-size:13.5px;font-weight:600;color:var(--ink-soft);text-align:center;padding:18px 10px;line-height:1.45}
+.qrerr b{color:var(--berry)}

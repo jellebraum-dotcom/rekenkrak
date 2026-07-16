@@ -170,12 +170,15 @@ function startGame(c){
         stars:0, firstTry:0, total:0, classRight:0, wrongOnce:false,
         locked:false, revealed:false, typed:"", typed2:"", active:0, current:null, raf:null, endT:0};
   hidePlayScreens(); $("#screenPlay").classList.remove("hidden");
+  if(root.scrollTo) root.scrollTo(0,0);   // meteen bovenaan de oefening, nooit scrollen
   document.body.style.background="radial-gradient(130% 90% at 50% -20%, #FFF7E6 0%, var(--paper) 60%)";
   soundOn=true; $("#soundBtn").textContent="🔊";
   if(game.classMode){ $("#starIcon").classList.add("hidden"); classShow(); }
   else { $("#starIcon").classList.remove("hidden"); $("#starCount").textContent="0"; nextQuestion(); }
 }
-function hidePlayScreens(){ $("#screenPlay").classList.add("hidden"); $("#screenDone").classList.add("hidden"); }
+/* verbergt alle schermen van de pagina (generator, welkom, setup, scanner, speler, resultaat),
+   zodat starten/eindigen altijd één volledig scherm toont — nooit scrollen */
+function hidePlayScreens(){ $$("main").forEach(function(m){ m.classList.add("hidden"); }); }
 
 /* ---------- equation tiles ---------- */
 function tNum(v){return '<span class="tile">'+v+'</span>';}
@@ -435,6 +438,7 @@ function updateClassCount(){
 function endClass(){
   stopTimer(); setGlow(0,"#FFD27A"); hideSplash();
   hidePlayScreens(); $("#screenDone").classList.remove("hidden");
+  if(root.scrollTo) root.scrollTo(0,0);
   var solved=game.classRight||0;
   $("#resultsBox").innerHTML=
     '<div class="medal">👏</div><h2>Goed samen geoefend!</h2>'+
@@ -509,7 +513,7 @@ function confLoop(){
 }
 
 /* ---------- resultaat (zelf) ---------- */
-function endGame(){ stopTimer(); hidePlayScreens(); $("#screenDone").classList.remove("hidden"); showResults(); }
+function endGame(){ stopTimer(); hidePlayScreens(); $("#screenDone").classList.remove("hidden"); if(root.scrollTo) root.scrollTo(0,0); showResults(); }
 function showResults(){
   var g=game, total=g.total, stars=g.stars, pct=total?Math.round(stars/total*100):0;
   var medal=pct>=90?"🏆":pct>=70?"🥇":pct>=50?"🥈":"🌱";
