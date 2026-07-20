@@ -178,7 +178,7 @@ var onExit=function(){};   // wordt per pagina ingesteld (leerling: naar start; 
 function startGame(c){
   ac();
   game={cfg:c, classMode:(c.session==="class"), set:buildSet(c), i:0,
-        stars:0, firstTry:0, total:0, classRight:0, wrongOnce:false,
+        stars:0, firstTry:0, total:0, classRight:0, wrongOnce:false, log:[], firstWrong:null,
         locked:false, revealed:false, typed:"", typed2:"", active:0, current:null, raf:null, endT:0};
   hidePlayScreens(); $("#screenPlay").classList.remove("hidden");
   if(root.scrollTo) root.scrollTo(0,0);   // meteen bovenaan de oefening, nooit scrollen
@@ -262,7 +262,7 @@ function nextQuestion(){
   var g=game;
   if(g.cfg.count>0 && g.i>=g.set.length){ return endGame(); }
   if(g.i>=g.set.length) g.set=g.set.concat(buildSet(g.cfg));
-  g.current=g.set[g.i]; g.typed=""; g.typed2=""; g.active=0; g.locked=false; g.wrongOnce=false;
+  g.current=g.set[g.i]; g.typed=""; g.typed2=""; g.active=0; g.locked=false; g.wrongOnce=false; g.firstWrong=null;
   renderEq();
   if(g.cfg.mode==="mc" && !g.current.two) renderChoices(); else renderPad();
   updateProgress();
@@ -324,11 +324,13 @@ function submitSelf(){
   if(!bothFilled()){ nudgeEmpty(); return; }
   if(evalCorrect()){
     g.locked=true; stopTimer(); g.total++; g.stars++;
+    g.log.push({q:g.current, ok:!g.wrongOnce, wrong:g.firstWrong});
     if(!g.wrongOnce) g.firstTry++; g.wrongOnce=false;
     $("#starCount").textContent=g.stars; sndGood();
     if(!reduced) confetti(); splash("🎉","Goed zo!","");
     setTimeout(advance, reduced?500:850);
   } else {
+    if(!g.wrongOnce) g.firstWrong = g.current.two? (g.typed+" rest "+g.typed2) : g.typed;
     sndBad(); shakeBlanks(); g.wrongOnce=true;
     g.typed=""; g.typed2=""; g.active=0; setBlankText(); syncCursor();
   }
@@ -342,9 +344,10 @@ function renderChoices(){
     b.onclick=function(){
       var g=game; if(g.locked) return; var v=parseInt(b.dataset.v,10);
       if(v===g.current.answer){ b.classList.add("good"); g.locked=true; stopTimer(); g.total++; g.stars++;
+        g.log.push({q:g.current, ok:!g.wrongOnce, wrong:g.firstWrong});
         if(!g.wrongOnce) g.firstTry++; g.wrongOnce=false; $("#starCount").textContent=g.stars; sndGood();
         if(!reduced) confetti(); splash("🎉","Goed zo!",""); setTimeout(advance, reduced?500:850);
-      } else { b.classList.add("bad"); sndBad(); b.classList.add("shake"); setTimeout(function(){b.classList.remove("shake");},450); g.wrongOnce=true; }
+      } else { if(!g.wrongOnce) g.firstWrong=String(v); b.classList.add("bad"); sndBad(); b.classList.add("shake"); setTimeout(function(){b.classList.remove("shake");},450); g.wrongOnce=true; }
     };
   });
 }
@@ -357,6 +360,7 @@ function timeUp(){
   }
   if(g.locked) return;
   g.locked=true; stopTimer(); g.total++; g.wrongOnce=false;
+  g.log.push({q:g.current, ok:false, wrong:g.firstWrong, timeout:true});
   revealInTiles();
   if(g.cfg.mode==="mc" && !g.current.two){ $$(".choice").forEach(function(b){ if(parseInt(b.dataset.v,10)===g.current.answer) b.classList.add("good"); }); }
   sndTime(); splash("⏰","Tijd om!", answerText(g.current));
@@ -525,6 +529,33 @@ function confLoop(){
 
 /* ---------- resultaat (zelf) ---------- */
 function endGame(){ stopTimer(); hidePlayScreens(); $("#screenDone").classList.remove("hidden"); if(root.scrollTo) root.scrollTo(0,0); showResults(); }
+/* leesbare somtekst voor het overzicht */
+function reviewSom(q){
+  if(q.op==="split") return "splits "+q.top+" → "+q.a+" en "+q.b;
+  if(q.two) return q.a+" "+q.sym+" "+q.b+" = "+q.c+" rest "+q.rem;
+  return q.a+" "+q.sym+" "+q.b+" = "+q.c;
+}
+function reviewHTML(log){
+  if(!log || !log.length) return "";
+  var nWrong=0; log.forEach(function(e){ if(!e.ok) nWrong++; });
+  var html='<div class="review"><h3>Overzicht van je reeks'+
+    '<span class="review__count">'+(nWrong? nWrong+" om te herhalen":"alles juist!")+'</span></h3>';
+  log.forEach(function(e,i){
+    var sub="";
+    if(!e.ok){
+      if(e.timeout && e.wrong==null) sub="de tijd was om";
+      else if(e.timeout) sub="eerste antwoord: "+e.wrong+" — de tijd was om";
+      else if(e.wrong!=null && e.wrong!=="") sub="eerste antwoord: "+e.wrong;
+      else sub="niet in één keer";
+    }
+    html+='<div class="review__row'+(e.ok?"":" review__row--bad")+'">'+
+      '<span class="review__ic '+(e.ok?"review__ic--good":"review__ic--bad")+'">'+(e.ok?"✓":"✗")+'</span>'+
+      '<span class="review__tx"><b>'+(i+1)+". "+reviewSom(e.q)+'</b>'+
+      (sub? '<span class="review__given">'+sub+'</span>':"")+
+      '</span></div>';
+  });
+  return html+"</div>";
+}
 function showResults(){
   var g=game, total=g.total, stars=g.stars, pct=total?Math.round(stars/total*100):0;
   var medal=pct>=90?"🏆":pct>=70?"🥇":pct>=50?"🥈":"🌱";
@@ -537,6 +568,7 @@ function showResults(){
       '<div class="bd"><b>'+g.firstTry+'</b><span>in één keer</span></div>'+
       '<div class="bd"><b>'+pct+'%</b><span>juist</span></div>'+
     '</div>'+
+    reviewHTML(g.log)+
     '<div class="results__btns">'+
       '<button class="btn btn--grass" id="again" type="button">↻ Nog eens</button>'+
       '<button class="btn btn--ghost" id="exit" type="button">🏠 Klaar</button>'+
