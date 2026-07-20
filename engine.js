@@ -120,9 +120,20 @@ function genQuestion(cfg,avoid){
   }
   return q;
 }
+/* Een reeks opbouwen: binnen één reeks komt dezelfde som niet dubbel voor
+   (zolang er genoeg verschillende sommen bestaan voor de gekozen opties).
+   Pas als alle mogelijkheden op zijn, mag een som terugkeren — maar nooit
+   twee keer meteen na elkaar. */
 function buildSet(cfg){
-  var n=cfg.count>0?cfg.count:12, list=[], last="";
-  for(var i=0;i<n;i++){var q=genQuestion(cfg,last);last=q.key;list.push(q);}
+  var n=cfg.count>0?cfg.count:12, list=[], used={}, last="";
+  for(var i=0;i<n;i++){
+    var q=null;
+    for(var t=0;t<80;t++){
+      q=genQuestion(cfg,last);
+      if(!used[q.key]) break;
+    }
+    used[q.key]=true; last=q.key; list.push(q);
+  }
   return list;
 }
 function choicesFor(q){
