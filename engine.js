@@ -319,20 +319,25 @@ function evalCorrect(){
   return parseInt(g.typed,10)===q.answer;
 }
 function bothFilled(){ var g=game; return g.current.two ? (g.typed!=="" && g.typed2!=="") : (g.typed!==""); }
+/* Eén kans per som: een fout antwoord telt als fout en blijft fout.
+   Het juiste antwoord verschijnt even op het scherm, daarna volgt de
+   volgende som. (In de klasmodus mag er wél samen verder gezocht worden.) */
 function submitSelf(){
   var g=game; if(g.locked) return;
   if(!bothFilled()){ nudgeEmpty(); return; }
   if(evalCorrect()){
-    g.locked=true; stopTimer(); g.total++; g.stars++;
-    g.log.push({q:g.current, ok:!g.wrongOnce, wrong:g.firstWrong});
-    if(!g.wrongOnce) g.firstTry++; g.wrongOnce=false;
+    g.locked=true; stopTimer(); g.total++; g.stars++; g.firstTry++;
+    g.log.push({q:g.current, ok:true});
     $("#starCount").textContent=g.stars; sndGood();
     if(!reduced) confetti(); splash("🎉","Goed zo!","");
     setTimeout(advance, reduced?500:850);
   } else {
-    if(!g.wrongOnce) g.firstWrong = g.current.two? (g.typed+" rest "+g.typed2) : g.typed;
-    sndBad(); shakeBlanks(); g.wrongOnce=true;
-    g.typed=""; g.typed2=""; g.active=0; setBlankText(); syncCursor();
+    g.locked=true; stopTimer(); g.total++;
+    g.log.push({q:g.current, ok:false, wrong:(g.current.two? (g.typed+" rest "+g.typed2) : g.typed)});
+    sndBad(); shakeBlanks();
+    setTimeout(revealInTiles, reduced?60:430);
+    splash("🤔","Bijna!", answerText(g.current));
+    setTimeout(advance, reduced?900:2300);
   }
 }
 function renderChoices(){
@@ -343,11 +348,18 @@ function renderChoices(){
   $$(".choice",box).forEach(function(b){
     b.onclick=function(){
       var g=game; if(g.locked) return; var v=parseInt(b.dataset.v,10);
-      if(v===g.current.answer){ b.classList.add("good"); g.locked=true; stopTimer(); g.total++; g.stars++;
-        g.log.push({q:g.current, ok:!g.wrongOnce, wrong:g.firstWrong});
-        if(!g.wrongOnce) g.firstTry++; g.wrongOnce=false; $("#starCount").textContent=g.stars; sndGood();
+      if(v===g.current.answer){ b.classList.add("good"); g.locked=true; stopTimer(); g.total++; g.stars++; g.firstTry++;
+        g.log.push({q:g.current, ok:true});
+        $("#starCount").textContent=g.stars; sndGood();
         if(!reduced) confetti(); splash("🎉","Goed zo!",""); setTimeout(advance, reduced?500:850);
-      } else { if(!g.wrongOnce) g.firstWrong=String(v); b.classList.add("bad"); sndBad(); b.classList.add("shake"); setTimeout(function(){b.classList.remove("shake");},450); g.wrongOnce=true; }
+      } else {
+        g.locked=true; stopTimer(); g.total++;
+        g.log.push({q:g.current, ok:false, wrong:String(v)});
+        b.classList.add("bad","shake"); sndBad();
+        $$(".choice").forEach(function(x){ if(parseInt(x.dataset.v,10)===g.current.answer) x.classList.add("good"); });
+        splash("🤔","Bijna!", answerText(g.current));
+        setTimeout(advance, reduced?900:2300);
+      }
     };
   });
 }
@@ -360,7 +372,7 @@ function timeUp(){
   }
   if(g.locked) return;
   g.locked=true; stopTimer(); g.total++; g.wrongOnce=false;
-  g.log.push({q:g.current, ok:false, wrong:g.firstWrong, timeout:true});
+  g.log.push({q:g.current, ok:false, wrong:null, timeout:true});
   revealInTiles();
   if(g.cfg.mode==="mc" && !g.current.two){ $$(".choice").forEach(function(b){ if(parseInt(b.dataset.v,10)===g.current.answer) b.classList.add("good"); }); }
   sndTime(); splash("⏰","Tijd om!", answerText(g.current));
@@ -543,10 +555,9 @@ function reviewHTML(log){
   log.forEach(function(e,i){
     var sub="";
     if(!e.ok){
-      if(e.timeout && e.wrong==null) sub="de tijd was om";
-      else if(e.timeout) sub="eerste antwoord: "+e.wrong+" — de tijd was om";
-      else if(e.wrong!=null && e.wrong!=="") sub="eerste antwoord: "+e.wrong;
-      else sub="niet in één keer";
+      if(e.timeout) sub="de tijd was om";
+      else if(e.wrong!=null && e.wrong!=="") sub="jouw antwoord: "+e.wrong;
+      else sub="geen antwoord";
     }
     html+='<div class="review__row'+(e.ok?"":" review__row--bad")+'">'+
       '<span class="review__ic '+(e.ok?"review__ic--good":"review__ic--bad")+'">'+(e.ok?"✓":"✗")+'</span>'+
@@ -565,7 +576,7 @@ function showResults(){
     '<div class="score">'+stars+' van '+total+' juist</div>'+
     '<div class="breakdown">'+
       '<div class="bd"><b>'+stars+'</b><span>sterren</span></div>'+
-      '<div class="bd"><b>'+g.firstTry+'</b><span>in één keer</span></div>'+
+      '<div class="bd"><b>'+(total-stars)+'</b><span>fout</span></div>'+
       '<div class="bd"><b>'+pct+'%</b><span>juist</span></div>'+
     '</div>'+
     reviewHTML(g.log)+
