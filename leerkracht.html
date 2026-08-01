@@ -118,23 +118,33 @@ var OPW={add:"+",sub:"−",mul:"×",div:"÷",split:"splitsen"};
 function summaryPills(){
   var box=$("#summary"); box.innerHTML="";
   function add(t){var s=document.createElement("span");s.className="pill";s.textContent=t;box.appendChild(s);}
-  add("Bewerking: "+state.ops.map(function(o){return OPW[o];}).join(" "));
-  var hasMD=state.ops.indexOf("mul")>-1||state.ops.indexOf("div")>-1;
-  var hasAS=state.ops.indexOf("add")>-1||state.ops.indexOf("sub")>-1;
-  var hasSplit=state.ops.indexOf("split")>-1;
-  if(hasMD) add("Tafels: "+state.tables.join(", "));
-  if(hasAS) add("tot "+state.range);
-  if(hasSplit) add("Splitsen van "+state.splits.join(", "));
-  if(!(hasSplit&&state.ops.length===1)) add(state.forms.map(function(f){return MK.FORM_LABEL[f];}).join(" · "));
-  if(state.ops.indexOf("div")>-1 && state.rest) add("met rest");
+  add(MK.GRAAD_LABEL[state.graad]);
+  add(MK.domeinById(state.domein).label);
+  if(state.domein==="bew"){
+    add("Bewerking: "+state.ops.map(function(o){return OPW[o];}).join(" "));
+    var hasMD=state.ops.indexOf("mul")>-1||state.ops.indexOf("div")>-1;
+    var hasAS=state.ops.indexOf("add")>-1||state.ops.indexOf("sub")>-1;
+    var hasSplit=state.ops.indexOf("split")>-1;
+    if(hasMD) add("Tafels: "+state.tables.join(", "));
+    if(hasAS) add("tot "+state.range);
+    if(hasSplit) add("Splitsen van "+state.splits.join(", "));
+    if(!(hasSplit&&state.ops.length===1)) add(state.forms.map(function(f){return MK.FORM_LABEL[f];}).join(" · "));
+    if(state.ops.indexOf("div")>-1 && state.rest) add("met rest");
+    add(state.mode==="pad"?"Cijfers tikken":"Kiezen uit 4");
+  } else {
+    var labels=(state.topics||[]).map(function(id){
+      var t=MK.topicById(state.domein,state.graad,id); return t? t.label:null;
+    }).filter(Boolean);
+    add(labels.length>2? labels.length+" onderwerpen" : labels.join(" · "));
+  }
   add(state.seconds? state.seconds+" sec/som":"Geen tijd");
-  add(state.count? state.count+" sommen":"Oneindig");
-  add(state.session==="class"? "Klassikaal" : (state.mode==="pad"?"Cijfers tikken":"Kiezen uit 4"));
+  add(state.count? state.count+" oefeningen":"Oneindig");
+  add(state.session==="class"? "Klassikaal":"Zelfstandig");
 }
 function applySessionUI(){
   var cls=state.session==="class";
   $("#sessionNote").innerHTML = cls
-    ? "Voor op het digibord: toon de som, laat handen opsteken en tik samen het antwoord in. Op een touchbord kan een kind het zelf aan het bord oplossen — de knoppen zijn er extra groot."
+    ? "Voor op het digibord: toon de opgave, laat handen opsteken en los ze samen op. Op een touchbord kan een kind het zelf aan het bord oplossen — de knoppen zijn er extra groot."
     : "Elk kind oefent op een eigen tablet of gsm.";
   $("#tryit").textContent = cls? "▶ Start klasoefening" : "▶ Probeer zelf";
   $$("#session .chip").forEach(function(x){ x.setAttribute("aria-pressed",(x.dataset.k==="class")===cls); });
@@ -159,7 +169,7 @@ MK.setOnExit(backToGen);
 
 var host = (location.origin && location.origin!=="null");
 $("#hostnote").innerHTML = host
-  ? '<b>Zo werkt het:</b> de QR-code en link openen de <b>leerlingapp</b> met precies deze oefening erin. Deel ze met je leerlingen — geen login nodig. De instellingen zitten in de link zelf.'
+  ? '<b>Zo werkt het:</b> kies eerst de <b>graad</b>, dan het <b>onderdeel</b> en tot slot de onderwerpen. De QR-code en link openen de <b>leerlingapp</b> met precies deze oefening erin — geen login nodig.'
   : '<b>Tip:</b> zet <b>index.html</b> en <b>leerkracht.html</b> samen online (bv. GitHub Pages). De QR-codes wijzen dan automatisch naar de leerlingapp. Met “Probeer zelf” test je de oefening nu al volledig.';
 
 /* eventueel instellingen uit een geopende link overnemen (blijft op generator) */

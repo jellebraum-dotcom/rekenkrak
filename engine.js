@@ -26,7 +26,369 @@ var TOK2OP={a:"add",s:"sub",m:"mul",d:"div",p:"split"};
 var OP2TOK={add:"a",sub:"s",mul:"m",div:"d",split:"p"};
 var FORM_LABEL={0:"Antwoord",1:"Eerste getal",2:"Tweede getal"};
 
-function defaults(){ return {ops:["mul"],tables:[2,5,10],range:100,splits:[10],forms:[0],rest:false,seconds:0,count:10,mode:"pad",session:"self"}; }
+function defaults(){ return {graad:2,domein:"bew",topics:[],ops:["mul"],tables:[2,5,10],range:100,splits:[10],forms:[0],rest:false,seconds:0,count:10,mode:"pad",session:"self"}; }
+
+/* =====================================================================
+   DOMEINEN — de vijf leergebieden van wiskunde in het lager onderwijs.
+   Je kiest er telkens één; daarbinnen vink je onderwerpen aan. Zo blijft
+   het scherm overzichtelijk, ook nu er veel meer leerstof in zit.
+   ===================================================================== */
+var GRAAD_LABEL={1:"1e graad (L1–L2)",2:"2e graad (L3–L4)",3:"3e graad (L5–L6)"};
+var DOMEINEN=[
+  {id:"bew",   sym:"+−×÷", label:"Bewerkingen",   sub:"plus, min, keer, gedeeld, splitsen"},
+  {id:"getal", sym:"123",  label:"Getallenkennis", sub:"tellen, ordenen, plaatswaarde"},
+  {id:"breuk", sym:"½",    label:"Breuken & komma", sub:"breuken, kommagetallen, procent"},
+  {id:"meten", sym:"📏",   label:"Meten",          sub:"lengte, gewicht, omtrek, oppervlakte"},
+  {id:"mk",    sym:"△",    label:"Meetkunde",      sub:"vormen, hoeken, ruimtefiguren"}
+];
+function domeinById(id){ for(var i=0;i<DOMEINEN.length;i++) if(DOMEINEN[i].id===id) return DOMEINEN[i]; return DOMEINEN[0]; }
+
+/* ---------- tekenhulpjes voor meten en meetkunde ---------- */
+function figRect(l,b,unit){
+  var w=150, h=Math.max(50,Math.round(150*b/Math.max(l,b)*0.7));
+  return '<svg class="fig" viewBox="0 0 210 130" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+
+    '<rect class="fig__shape" x="30" y="'+(25+(80-h)/2)+'" width="'+w+'" height="'+h+'" rx="4"/>'+
+    '<text class="fig__lbl" x="'+(30+w/2)+'" y="18">'+l+' '+unit+'</text>'+
+    '<text class="fig__lbl" x="16" y="'+(25+(80-h)/2+h/2)+'" transform="rotate(-90 16 '+(25+(80-h)/2+h/2)+')">'+b+' '+unit+'</text>'+
+    '</svg>';
+}
+function figTri(b,h,unit){
+  return '<svg class="fig" viewBox="0 0 210 130" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+
+    '<polygon class="fig__shape" points="35,105 185,105 110,25"/>'+
+    '<line class="fig__help" x1="110" y1="25" x2="110" y2="105"/>'+
+    '<text class="fig__lbl" x="110" y="122">'+b+' '+unit+'</text>'+
+    '<text class="fig__lbl" x="122" y="68">'+h+' '+unit+'</text>'+
+    '</svg>';
+}
+var SHAPES={
+  vierkant:'<rect class="fig__shape" x="65" y="20" width="80" height="80" rx="3"/>',
+  rechthoek:'<rect class="fig__shape" x="35" y="30" width="140" height="60" rx="3"/>',
+  driehoek:'<polygon class="fig__shape" points="35,100 175,100 105,20"/>',
+  cirkel:'<circle class="fig__shape" cx="105" cy="60" r="45"/>',
+  vijfhoek:'<polygon class="fig__shape" points="105,18 160,58 139,100 71,100 50,58"/>',
+  zeshoek:'<polygon class="fig__shape" points="65,20 145,20 175,60 145,100 65,100 35,60"/>'
+};
+function figShape(name){
+  return '<svg class="fig" viewBox="0 0 210 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+(SHAPES[name]||"")+'</svg>';
+}
+function figAngle(deg){
+  var a=(-deg)*Math.PI/180;
+  return '<svg class="fig" viewBox="0 0 210 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+
+    '<line class="fig__ray" x1="40" y1="95" x2="185" y2="95"/>'+
+    '<line class="fig__ray" x1="40" y1="95" x2="'+(40+145*Math.cos(a)).toFixed(1)+'" y2="'+(95+145*Math.sin(a)).toFixed(1)+'"/>'+
+    '<path class="fig__arc" d="M 75 95 A 35 35 0 0 1 '+(40+35*Math.cos(a)).toFixed(1)+' '+(95+35*Math.sin(a)).toFixed(1)+'" fill="none"/>'+
+    '</svg>';
+}
+
+/* ---------- generatoren per onderwerp ----------
+   Elk onderwerp levert: {gen:true, prompt, answer, unit, choices?, fig?, key} */
+function G(prompt,answer,extra){
+  var q={gen:true, prompt:prompt, answer:answer, key:prompt};
+  if(extra) for(var k in extra) q[k]=extra[k];
+  return q;
+}
+/* keuzes samenstellen: het juiste antwoord plus afleiders, nooit twee keer
+   dezelfde knop (reserve-afleiders vullen aan waar nodig) */
+function shuffle4(correct, wrongs, reserve){
+  var out=[String(correct)];
+  (wrongs||[]).forEach(function(w){ w=String(w); if(out.length<4 && out.indexOf(w)===-1) out.push(w); });
+  (reserve||[]).forEach(function(w){ w=String(w); if(out.length<4 && out.indexOf(w)===-1) out.push(w); });
+  return shuffle(out);
+}
+/* kommagetal in Nederlandse schrijfwijze, zonder drijvende-kommaruis */
+function kommaStr(x){ return (Math.round(x*10000)/10000).toString().replace(".",","); }
+
+var TOPICS={
+getal:{
+ 1:[
+  {id:"buur", label:"Buurgetallen", sub:"na 39 komt …", gen:function(c){
+    var n=rnd(2,c.graad===1?99:999), na=Math.random()<0.5;
+    return G("Welk getal komt vlak "+(na?"na":"voor")+" "+n+"?", na?n+1:n-1, {key:"buur"+n+na});
+  }},
+  {id:"tussen", label:"Getal ertussen", sub:"tussen 45 en 47", gen:function(c){
+    var n=rnd(2,98);
+    return G("Welk getal ligt tussen "+(n-1)+" en "+(n+1)+"?", n, {key:"tus"+n});
+  }},
+  {id:"vgl", label:"Groter of kleiner?", sub:"34 ? 43", gen:function(c){
+    var a=rnd(1,99), b=rnd(1,99);
+    return G("Vergelijk: "+a+" ⬚ "+b, a<b?"<":(a>b?">":"="), {choices:["<",">","="], key:"vgl"+a+"_"+b});
+  }},
+  {id:"even", label:"Even of oneven?", sub:"47 is oneven", gen:function(c){
+    var n=rnd(1,99);
+    return G("Is "+n+" even of oneven?", n%2===0?"even":"oneven", {choices:["even","oneven"], key:"ev"+n});
+  }},
+  {id:"pw1", label:"Tientallen en eenheden", sub:"in 47 zitten 4 T", gen:function(c){
+    var n=rnd(11,99), t=Math.random()<0.5;
+    return G("Hoeveel "+(t?"tientallen":"eenheden")+" heeft "+n+"?", t?Math.floor(n/10):n%10, {key:"pw1"+n+t});
+  }}
+ ],
+ 2:[
+  {id:"buur", label:"Buurgetallen", sub:"na 899 komt …", gen:function(c){
+    var n=rnd(100,9998), na=Math.random()<0.5;
+    return G("Welk getal komt vlak "+(na?"na":"voor")+" "+n+"?", na?n+1:n-1, {key:"buur"+n+na});
+  }},
+  {id:"vgl", label:"Groter of kleiner?", sub:"1345 ? 1354", gen:function(c){
+    var a=rnd(100,9999), b=Math.random()<0.5? a+pick([-9,-1,1,9,90]) : rnd(100,9999);
+    if(b<0) b=rnd(100,9999);
+    return G("Vergelijk: "+a+" ⬚ "+b, a<b?"<":(a>b?">":"="), {choices:["<",">","="], key:"vgl"+a+"_"+b});
+  }},
+  {id:"pw2", label:"Plaatswaarde", sub:"3482 → 4 honderdtallen", gen:function(c){
+    var n=rnd(1000,9999);
+    var k=pick([["duizendtallen",1000],["honderdtallen",100],["tientallen",10],["eenheden",1]]);
+    return G("Hoeveel "+k[0]+" heeft "+n+"?", Math.floor(n/k[1])%10, {key:"pw2"+n+k[0]});
+  }},
+  {id:"afr", label:"Afronden", sub:"op tien of honderd", gen:function(c){
+    var n=rnd(105,9994);
+    var k=pick([["tiental",10],["honderdtal",100]]);
+    return G("Rond "+n+" af op het "+k[0]+".", Math.round(n/k[1])*k[1], {key:"afr"+n+k[0]});
+  }},
+  {id:"even", label:"Even of oneven?", sub:"1348 is even", gen:function(c){
+    var n=rnd(100,9999);
+    return G("Is "+n+" even of oneven?", n%2===0?"even":"oneven", {choices:["even","oneven"], key:"ev"+n});
+  }}
+ ],
+ 3:[
+  {id:"pw3", label:"Plaatswaarde grote getallen", sub:"348512 → 8 tienduizendtallen", gen:function(c){
+    var n=rnd(100000,999999);
+    var k=pick([["honderdduizendtallen",100000],["tienduizendtallen",10000],["duizendtallen",1000],["honderdtallen",100]]);
+    return G("Hoeveel "+k[0]+" heeft "+n+"?", Math.floor(n/k[1])%10, {key:"pw3"+n+k[0]});
+  }},
+  {id:"afr3", label:"Afronden", sub:"op duizend", gen:function(c){
+    var n=rnd(10050,999499);
+    var k=pick([["honderdtal",100],["duizendtal",1000],["tienduizendtal",10000]]);
+    return G("Rond "+n+" af op het "+k[0]+".", Math.round(n/k[1])*k[1], {key:"afr3"+n+k[0]});
+  }},
+  {id:"deelb", label:"Deelbaarheid", sub:"deelbaar door 3?", gen:function(c){
+    var d=pick([2,3,5,9,10]), n=rnd(100,999);
+    return G("Is "+n+" deelbaar door "+d+"?", n%d===0?"ja":"nee", {choices:["ja","nee"], key:"db"+n+"_"+d});
+  }},
+  {id:"neg", label:"Negatieve getallen", sub:"3 − 8 = −5", gen:function(c){
+    var a=rnd(1,9), b=rnd(a+1,15), r=a-b;
+    return G(a+" − "+b+" = ⬚", String(r),
+      {choices:shuffle4(r, [b-a, r-1, r+2], [r-2, r+1, b+a]), key:"neg"+a+"_"+b});
+  }},
+  {id:"vgl3", label:"Ordenen", sub:"grootste getal", gen:function(c){
+    var s=[rnd(1000,99999),rnd(1000,99999),rnd(1000,99999)];
+    while(s[0]===s[1]||s[1]===s[2]||s[0]===s[2]) s=[rnd(1000,99999),rnd(1000,99999),rnd(1000,99999)];
+    var grootste=Math.random()<0.5;
+    var a=grootste? Math.max.apply(null,s) : Math.min.apply(null,s);
+    return G("Welk getal is het "+(grootste?"grootst":"kleinst")+"?", String(a),
+      {choices:shuffle(s.map(String)), key:"ord"+s.join("_")+grootste});
+  }}
+ ]
+},
+breuk:{
+ 2:[
+  {id:"deelvan", label:"Deel van een getal", sub:"3/4 van 20", gen:function(c){
+    var n=pick([2,3,4,5]), t=rnd(1,n-1)||1, tot=n*rnd(2,6);
+    return G(t+"/"+n+" van "+tot+" = ⬚", tot/n*t, {key:"dv"+t+n+tot});
+  }},
+  {id:"gelijkw", label:"Gelijkwaardige breuken", sub:"1/2 = ?/8", gen:function(c){
+    var n=pick([2,3,4,5]), t=rnd(1,n-1)||1, f=rnd(2,4);
+    return G(t+"/"+n+" = ⬚/"+(n*f), t*f, {key:"gw"+t+n+f});
+  }},
+  {id:"breukvgl", label:"Welke breuk is groter?", sub:"2/3 of 3/5", gen:function(c){
+    var a=[rnd(1,4),rnd(2,6)], b=[rnd(1,4),rnd(2,6)];
+    while(a[0]>=a[1]) a=[rnd(1,4),rnd(2,6)];
+    while(b[0]>=b[1] || a[0]/a[1]===b[0]/b[1]) b=[rnd(1,4),rnd(2,6)];
+    var A=a[0]+"/"+a[1], B=b[0]+"/"+b[1];
+    return G("Welke breuk is het grootst?", (a[0]/a[1]>b[0]/b[1])?A:B, {choices:shuffle([A,B]), key:"bv"+A+B});
+  }},
+  {id:"kommalees", label:"Kommagetallen ordenen", sub:"0,7 of 0,25", gen:function(c){
+    var s=[]; while(s.length<3){ var v=(rnd(1,99)/(pick([10,100]))).toFixed(2).replace(/0$/,"");
+      if(s.indexOf(v)===-1) s.push(v); }
+    var nums=s.map(Number), grootste=Math.random()<0.5;
+    var w=grootste? Math.max.apply(null,nums) : Math.min.apply(null,nums);
+    var ans=s[nums.indexOf(w)];
+    return G("Welk getal is het "+(grootste?"grootst":"kleinst")+"?", ans.replace(".",","),
+      {choices:shuffle(s.map(function(x){return x.replace(".",",");})), key:"kl"+s.join("_")+grootste});
+  }}
+ ],
+ 3:[
+  {id:"breukoptel", label:"Breuken optellen", sub:"1/5 + 2/5", gen:function(c){
+    var n=pick([4,5,6,8,10]), a=rnd(1,n-2), b=rnd(1,n-a-1)||1;
+    return G(a+"/"+n+" + "+b+"/"+n+" = ⬚/"+n, a+b, {key:"bo"+a+b+n});
+  }},
+  {id:"vereenv", label:"Breuken vereenvoudigen", sub:"6/8 = 3/4", gen:function(c){
+    var basis=pick([[1,2],[1,3],[2,3],[1,4],[3,4],[1,5],[2,5],[3,5]]), f=rnd(2,4);
+    var t=basis[0]*f, n=basis[1]*f, ans=basis[0]+"/"+basis[1];
+    var w=[t+"/"+(n*2), (basis[0]*2)+"/"+basis[1], basis[0]+"/"+(basis[1]*2)].filter(function(x){return x!==ans;});
+    return G("Vereenvoudig "+t+"/"+n+" zo ver mogelijk.", ans, {choices:shuffle4(ans,w.slice(0,3)), key:"ve"+t+n});
+  }},
+  {id:"breukkomma", label:"Breuk naar kommagetal", sub:"1/4 = 0,25", gen:function(c){
+    var m=pick([[1,2,"0,5"],[1,4,"0,25"],[3,4,"0,75"],[1,5,"0,2"],[2,5,"0,4"],[3,5,"0,6"],[1,10,"0,1"],[7,10,"0,7"]]);
+    var w=["0,15","0,45","0,05","0,8","0,35","0,9"].filter(function(x){return x!==m[2];});
+    return G(m[0]+"/"+m[1]+" = ⬚ (als kommagetal)", m[2], {choices:shuffle4(m[2], shuffle(w).slice(0,3)), key:"bk"+m[0]+m[1]});
+  }},
+  {id:"kommamaal", label:"Kommagetal × 10, 100", sub:"3,5 × 10", gen:function(c){
+    var dec=pick([1,2]);
+    var v=rnd(11, dec===1?99:999)/Math.pow(10,dec);
+    var f=pick([10,100,1000]);
+    var ans=kommaStr(v*f);
+    return G(kommaStr(v)+" × "+f+" = ⬚", ans,
+      {choices:shuffle4(ans, [kommaStr(v*f*10), kommaStr(v*f/10), kommaStr(v)],
+                             [kommaStr(v*f/100), kommaStr(v*f*100)]),
+       key:"km"+kommaStr(v)+"x"+f});
+  }},
+  {id:"procent", label:"Procent van een getal", sub:"10% van 250", gen:function(c){
+    var p=pick([10,20,25,50,75]), tot=pick([20,40,60,80,100,200,250,400]);
+    return G(p+"% van "+tot+" = ⬚", Math.round(tot*p/100), {key:"pc"+p+tot});
+  }},
+  {id:"verhoud", label:"Verhoudingen", sub:"3 stuks → 6 stuks", gen:function(c){
+    var n=rnd(2,6), prijs=rnd(2,9), f=rnd(2,4);
+    return G(n+" broden kosten "+(n*prijs)+" euro. Hoeveel kosten "+(n*f)+" broden?", n*prijs*f, {unit:"euro", key:"vh"+n+prijs+f});
+  }}
+ ]
+},
+meten:{
+ 1:[
+  {id:"geld1", label:"Geld teruggeven", sub:"betalen met €20", gen:function(c){
+    var prijs=rnd(2,18), betaald=pick([10,20]);
+    if(prijs>=betaald) prijs=rnd(2,betaald-1);
+    return G("Je koopt iets van "+prijs+" euro en betaalt met "+betaald+" euro. Hoeveel krijg je terug?", betaald-prijs, {unit:"euro", key:"gl"+prijs+betaald});
+  }},
+  {id:"lengte1", label:"Meter en centimeter", sub:"2 m = 200 cm", gen:function(c){
+    var m=rnd(1,9);
+    return G(m+" m = ⬚ cm", m*100, {unit:"cm", key:"le1"+m});
+  }},
+  {id:"tijd1", label:"Tijdmaten", sub:"1 uur = 60 minuten", gen:function(c){
+    var k=pick([["uur","minuten",60],["dag","uur",24],["week","dagen",7],["minuut","seconden",60]]);
+    var n=rnd(2,6);
+    return G(n+" "+k[0]+(n>1?(k[0]==="uur"?"":"en"):"")+" = ⬚ "+k[1], n*k[2], {unit:k[1], key:"tm1"+k[0]+n});
+  }}
+ ],
+ 2:[
+  {id:"lengte2", label:"Lengtematen omzetten", sub:"3 km = 3000 m", gen:function(c){
+    var k=pick([["km","m",1000],["m","cm",100],["m","dm",10],["cm","mm",10],["dm","cm",10]]);
+    var n=rnd(2,9);
+    return G(n+" "+k[0]+" = ⬚ "+k[1], n*k[2], {unit:k[1], key:"le2"+k[0]+n});
+  }},
+  {id:"gewicht", label:"Gewicht omzetten", sub:"2 kg = 2000 g", gen:function(c){
+    var k=pick([["kg","g",1000],["ton","kg",1000]]);
+    var n=rnd(2,9);
+    return G(n+" "+k[0]+" = ⬚ "+k[1], n*k[2], {unit:k[1], key:"gw"+k[0]+n});
+  }},
+  {id:"inhoud", label:"Inhoud omzetten", sub:"5 l = 50 dl", gen:function(c){
+    var k=pick([["l","dl",10],["l","cl",100],["l","ml",1000],["dl","cl",10],["cl","ml",10]]);
+    var n=rnd(2,9);
+    return G(n+" "+k[0]+" = ⬚ "+k[1], n*k[2], {unit:k[1], key:"ih"+k[0]+n});
+  }},
+  {id:"omtrek", label:"Omtrek berekenen", sub:"rechthoek", gen:function(c){
+    var l=rnd(3,15), b=rnd(2,l-1)||2;
+    return G("Bereken de omtrek van deze rechthoek.", 2*(l+b), {unit:"cm", fig:figRect(l,b,"cm"), key:"om"+l+"_"+b});
+  }},
+  {id:"omtrekv", label:"Omtrek van een vierkant", sub:"zijde 7 cm", gen:function(c){
+    var z=rnd(2,20);
+    return G("Een vierkant heeft zijden van "+z+" cm. Wat is de omtrek?", 4*z, {unit:"cm", fig:figShape("vierkant"), key:"omv"+z});
+  }}
+ ],
+ 3:[
+  {id:"opprecht", label:"Oppervlakte rechthoek", sub:"lengte × breedte", gen:function(c){
+    var l=rnd(3,15), b=rnd(2,12);
+    return G("Bereken de oppervlakte van deze rechthoek.", l*b, {unit:"cm²", fig:figRect(l,b,"cm"), key:"or"+l+"_"+b});
+  }},
+  {id:"oppdrie", label:"Oppervlakte driehoek", sub:"(basis × hoogte) : 2", gen:function(c){
+    var b=pick([4,6,8,10,12,14,16]), h=rnd(3,12);
+    return G("Bereken de oppervlakte van deze driehoek.", b*h/2, {unit:"cm²", fig:figTri(b,h,"cm"), key:"od"+b+"_"+h});
+  }},
+  {id:"volume", label:"Volume van een balk", sub:"l × b × h", gen:function(c){
+    var l=rnd(2,9), b=rnd(2,8), h=rnd(2,7);
+    return G("Een balk is "+l+" cm lang, "+b+" cm breed en "+h+" cm hoog. Wat is het volume?", l*b*h, {unit:"cm³", key:"vol"+l+b+h});
+  }},
+  {id:"omzet3", label:"Maten omzetten", sub:"alle eenheden", gen:function(c){
+    var k=pick([["km","m",1000],["m","mm",1000],["kg","g",1000],["l","ml",1000],["m²","dm²",100],["uur","seconden",3600]]);
+    var n=rnd(2,9);
+    return G(n+" "+k[0]+" = ⬚ "+k[1], n*k[2], {unit:k[1], key:"oz"+k[0]+n});
+  }},
+  {id:"schaal", label:"Schaal", sub:"1 cm = 100 m", gen:function(c){
+    var s=pick([100,1000,10000]), cm=rnd(2,9);
+    return G("Op een kaart is de schaal 1 cm = "+s+" m. Hoeveel meter is "+cm+" cm in het echt?", cm*s, {unit:"m", key:"sc"+s+cm});
+  }}
+ ]
+},
+mk:{
+ 1:[
+  {id:"vorm", label:"Vormen herkennen", sub:"vierkant · cirkel", gen:function(c){
+    var n=pick(["vierkant","rechthoek","driehoek","cirkel"]);
+    var w=["vierkant","rechthoek","driehoek","cirkel"].filter(function(x){return x!==n;});
+    return G("Welke vorm is dit?", n, {choices:shuffle4(n,w.slice(0,3)), fig:figShape(n), key:"vorm"+n});
+  }},
+  {id:"zijden", label:"Hoeveel zijden?", sub:"driehoek → 3", gen:function(c){
+    var m=pick([["driehoek",3],["vierkant",4],["rechthoek",4],["vijfhoek",5],["zeshoek",6]]);
+    return G("Hoeveel zijden heeft een "+m[0]+"?", m[1], {fig:figShape(m[0]), key:"zij"+m[0]});
+  }},
+  {id:"hoekjes", label:"Hoeveel hoeken?", sub:"vierkant → 4", gen:function(c){
+    var m=pick([["driehoek",3],["vierkant",4],["rechthoek",4],["vijfhoek",5],["zeshoek",6]]);
+    return G("Hoeveel hoeken heeft een "+m[0]+"?", m[1], {fig:figShape(m[0]), key:"hkj"+m[0]});
+  }},
+  {id:"ruimte1", label:"Vormen om je heen", sub:"voetbal → bol", gen:function(c){
+    var m=pick([["een voetbal","bol"],["een dobbelsteen","kubus"],["een blikje soep","cilinder"],
+                ["een schoendoos","balk"],["een verkeerskegel","kegel"],["een knikker","bol"],
+                ["een suikerklontje","kubus"],["een wc-rol","cilinder"]]);
+    var w=["bol","kubus","cilinder","balk","kegel"].filter(function(x){return x!==m[1];});
+    return G("Welke vorm heeft "+m[0]+"?", m[1], {choices:shuffle4(m[1], shuffle(w).slice(0,3)), key:"rv"+m[0]});
+  }}
+ ],
+ 2:[
+  {id:"hoek", label:"Soorten hoeken", sub:"recht · scherp · stomp", gen:function(c){
+    var m=pick([[90,"een rechte hoek"],[rnd(20,75),"een scherpe hoek"],[rnd(105,160),"een stompe hoek"]]);
+    return G("Wat voor hoek is dit?", m[1], {choices:shuffle(["een rechte hoek","een scherpe hoek","een stompe hoek"]), fig:figAngle(m[0]), key:"hk"+m[0]});
+  }},
+  {id:"ruimte", label:"Ruimtefiguren", sub:"kubus → 12 ribben", gen:function(c){
+    var m=pick([["kubus","ribben",12],["kubus","vlakken",6],["kubus","hoekpunten",8],
+                ["balk","ribben",12],["balk","vlakken",6],["balk","hoekpunten",8],
+                ["driezijdige piramide","vlakken",4]]);
+    return G("Hoeveel "+m[1]+" heeft een "+m[0]+"?", m[2], {key:"rf"+m[0]+m[1]});
+  }},
+  {id:"symm", label:"Symmetrieassen", sub:"vierkant → 4", gen:function(c){
+    var m=pick([["vierkant",4],["rechthoek",2],["cirkel",null],["gelijkzijdige driehoek",3]]);
+    if(m[1]===null) m=["vierkant",4];
+    return G("Hoeveel symmetrieassen heeft een "+m[0]+"?", m[1], {key:"sy"+m[0]});
+  }},
+  {id:"evenwijdig", label:"Evenwijdig of loodrecht?", sub:"⊥ of ∥", gen:function(c){
+    var lood=Math.random()<0.5;
+    return G(lood? "Twee lijnen maken een rechte hoek met elkaar. Hoe noem je dat?"
+                 : "Twee lijnen lopen naast elkaar en raken elkaar nooit. Hoe noem je dat?",
+             lood?"loodrecht":"evenwijdig", {choices:["evenwijdig","loodrecht"], key:"ew"+lood});
+  }}
+ ],
+ 3:[
+  {id:"driehoek", label:"Soorten driehoeken", sub:"gelijkzijdig · rechthoekig", gen:function(c){
+    var m=pick([["drie gelijke zijden","gelijkzijdig"],["twee gelijke zijden","gelijkbenig"],["een rechte hoek","rechthoekig"]]);
+    return G("Een driehoek met "+m[0]+" noem je …", m[1],
+      {choices:shuffle(["gelijkzijdig","gelijkbenig","rechthoekig"]), key:"dh"+m[1]});
+  }},
+  {id:"vierhoek", label:"Soorten vierhoeken", sub:"vierkant · ruit · trapezium", gen:function(c){
+    var m=pick([["vier gelijke zijden en vier rechte hoeken","vierkant"],
+                ["twee paar evenwijdige zijden en vier rechte hoeken","rechthoek"],
+                ["vier gelijke zijden zonder rechte hoeken","ruit"],
+                ["precies één paar evenwijdige zijden","trapezium"]]);
+    return G("Een vierhoek met "+m[0]+" noem je …", m[1],
+      {choices:shuffle4(m[1],["vierkant","rechthoek","ruit","trapezium"].filter(function(x){return x!==m[1];}).slice(0,3)), key:"vh"+m[1]});
+  }},
+  {id:"hoeksom", label:"Hoeken berekenen", sub:"som = 180°", gen:function(c){
+    var a=rnd(30,80), b=rnd(30,180-a-20);
+    return G("Twee hoeken van een driehoek zijn "+a+"° en "+b+"°. Hoe groot is de derde hoek?", 180-a-b, {unit:"°", key:"hs"+a+"_"+b});
+  }},
+  {id:"cirkel", label:"Straal en middellijn", sub:"r → d", gen:function(c){
+    var r=rnd(2,20), naarD=Math.random()<0.5;
+    return G(naarD? "Een cirkel heeft een straal van "+r+" cm. Hoe groot is de middellijn?"
+                  : "Een cirkel heeft een middellijn van "+(r*2)+" cm. Hoe groot is de straal?",
+             naarD? r*2 : r, {unit:"cm", fig:figShape("cirkel"), key:"ci"+r+naarD});
+  }}
+ ]
+}
+};
+function topicsFor(domein,graad){
+  if(domein==="bew") return [];
+  var d=TOPICS[domein]||{};
+  return d[graad]||[];
+}
+function topicById(domein,graad,id){
+  var l=topicsFor(domein,graad);
+  for(var i=0;i<l.length;i++) if(l[i].id===id) return l[i];
+  return null;
+}
 
 /* ---------- helpers ---------- */
 function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
@@ -37,12 +399,14 @@ function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()
    URL <-> instellingen
    ===================================================================== */
 function buildHash(c){
-  return "#o="+c.ops.map(function(o){return OP2TOK[o];}).join(",")+
+  return "#g="+c.graad+"&d="+c.domein+
+         "&o="+c.ops.map(function(o){return OP2TOK[o];}).join(",")+
          "&t="+c.tables.join(",")+
          "&r="+c.range+
          "&sp="+c.splits.join(",")+
          "&f="+c.forms.join(",")+
          "&rest="+(c.rest?1:0)+
+         "&tp="+(c.topics||[]).join(",")+
          "&s="+c.seconds+"&n="+c.count+"&m="+c.mode+"&k="+(c.session==="class"?1:0);
 }
 function parseParams(str){
@@ -69,6 +433,17 @@ function parseParams(str){
   if(!c.splits.length) c.splits=[10];
   if(!c.forms.length) c.forms=[0];
   if(c.rest && c.mode==="mc") c.mode="pad";
+  /* Nieuw sinds de uitbreiding: graad, domein en onderwerpen.
+     Oudere QR-codes en links bevatten die niet — die blijven gewoon werken
+     en worden als een bewerkingen-oefening geopend. */
+  var g=parseInt(p.g,10);
+  c.graad=(g===1||g===2||g===3)? g : (c.range<=20?1:(c.range>=1000?3:2));
+  c.domein=(p.d && TOPICS[p.d])? p.d : "bew";
+  c.topics=(p.tp||"").split(",").filter(function(id){ return topicById(c.domein,c.graad,id); });
+  if(c.domein!=="bew" && !c.topics.length){
+    var l=topicsFor(c.domein,c.graad);
+    if(!l.length){ c.domein="bew"; } else c.topics=[l[0].id];
+  }
   return c;
 }
 
@@ -124,12 +499,24 @@ function genQuestion(cfg,avoid){
    (zolang er genoeg verschillende sommen bestaan voor de gekozen opties).
    Pas als alle mogelijkheden op zijn, mag een som terugkeren — maar nooit
    twee keer meteen na elkaar. */
+/* Eén opgave, uit het gekozen domein */
+function genAny(cfg,avoid){
+  if(cfg.domein==="bew" || !cfg.topics || !cfg.topics.length) return genQuestion(cfg,avoid);
+  for(var t=0;t<60;t++){
+    var tp=topicById(cfg.domein,cfg.graad,pick(cfg.topics));
+    if(!tp) continue;
+    var q=tp.gen(cfg);
+    q.topic=tp;
+    if(q.key!==avoid) return q;
+  }
+  return genQuestion(cfg,avoid);
+}
 function buildSet(cfg){
   var n=cfg.count>0?cfg.count:12, list=[], used={}, last="";
   for(var i=0;i<n;i++){
     var q=null;
     for(var t=0;t<80;t++){
-      q=genQuestion(cfg,last);
+      q=genAny(cfg,last);
       if(!used[q.key]) break;
     }
     used[q.key]=true; last=q.key; list.push(q);
@@ -197,6 +584,19 @@ function tOp(s){return '<span class="tile op">'+s+'</span>';}
 function tBlank(txt,filled,cursor,id){return '<span class="tile blank'+(cursor?" cursor":"")+(filled?" filled":"")+'" id="'+id+'">'+txt+'</span>';}
 function renderEq(){
   var g=game,q=g.current,html,big;
+  /* opgaven uit de nieuwe domeinen: vraag in woorden, met eventueel een tekening */
+  if(q.gen){
+    var f=g.typed!=="";
+    var eqG=$("#eq"); eqG.className="eq eq--vraag";
+    eqG.innerHTML=
+      (q.topic? '<span class="vraag__tag">'+q.topic.label+'</span>':'')+
+      '<p class="vraag">'+q.prompt.replace("⬚",'<span class="vraag__gap">?</span>')+'</p>'+
+      (q.fig? '<div class="figwrap">'+q.fig+'</div>':'')+
+      (q.choices? '' :
+        '<div class="antwoordrij">'+tBlank(f?g.typed:"?",f,true,"blankTile")+
+        (q.unit? '<span class="eenheid">'+q.unit+'</span>':'')+'</div>');
+    return;
+  }
   if(q.op==="split"){
     var f=g.typed!=="";
     var legA = q.blankLeg===0? tBlank(f?g.typed:"?",f,true,"blankTile") : tNum(q.a);
@@ -264,7 +664,12 @@ function nextQuestion(){
   if(g.i>=g.set.length) g.set=g.set.concat(buildSet(g.cfg));
   g.current=g.set[g.i]; g.typed=""; g.typed2=""; g.active=0; g.locked=false; g.wrongOnce=false; g.firstWrong=null;
   renderEq();
-  if(g.cfg.mode==="mc" && !g.current.two) renderChoices(); else renderPad();
+  if(g.current.gen){
+    /* sommige onderwerpen hebben van nature keuzeknoppen (bv. even of oneven),
+       de andere worden ingetikt met het cijferpad */
+    if(g.current.choices) renderTextChoices(g.current.choices); else renderPad();
+  }
+  else if(g.cfg.mode==="mc" && !g.current.two) renderChoices(); else renderPad();
   updateProgress();
   if(g.cfg.seconds>0) startTimer(g.cfg.seconds);
 }
@@ -281,6 +686,7 @@ var AUTO_DELAY=250, autoT=null;
 function cancelAuto(){ if(autoT){ clearTimeout(autoT); autoT=null; } }
 function fieldTarget(fld){
   var q=game.current;
+  if(q.gen) return q.answer;
   if(q.two) return fld==="typed2"? q.rem : q.c;
   return q.answer;
 }
@@ -309,14 +715,41 @@ function padPress(k){
   var fld=curField();
   if(k==="del"){ cancelAuto(); g[fld]=g[fld].slice(0,-1); setBlankText(); return; }
   else if(k==="ok"){ cancelAuto(); submitSelf(); return; }
-  else { if(g[fld].length<4) g[fld]+=k; }
+  else { if(g[fld].length<(g.current.gen?6:4)) g[fld]+=k; }
   setBlankText();
   autoStep(submitSelf);
 }
 function evalCorrect(){
   var g=game,q=g.current;
+  if(q.gen) return String(parseInt(g.typed,10))===String(q.answer);
   if(q.two) return parseInt(g.typed,10)===q.c && parseInt(g.typed2,10)===q.rem;
   return parseInt(g.typed,10)===q.answer;
+}
+/* keuzeknoppen met woorden (even/oneven, <, >, =, vormen, …) */
+function renderTextChoices(opts){
+  var html='<div class="choices choices--tekst">';
+  opts.forEach(function(v){ html+='<button class="choice choice--tekst" data-v="'+String(v).replace(/"/g,"&quot;")+'" type="button">'+v+'</button>'; });
+  html+="</div>";
+  var box=$("#input"); box.innerHTML=html;
+  $$(".choice",box).forEach(function(b){
+    b.onclick=function(){
+      var g=game; if(g.locked) return;
+      var v=b.dataset.v, q=g.current;
+      if(v===String(q.answer)){
+        b.classList.add("good"); g.locked=true; stopTimer(); g.total++; g.stars++; g.firstTry++;
+        g.log.push({q:q, ok:true});
+        $("#starCount").textContent=g.stars; sndGood();
+        if(!reduced) confetti(); splash("🎉","Goed zo!",""); setTimeout(advance, reduced?500:850);
+      } else {
+        g.locked=true; stopTimer(); g.total++;
+        g.log.push({q:q, ok:false, wrong:v});
+        b.classList.add("bad","shake"); sndBad();
+        $$(".choice").forEach(function(x){ if(x.dataset.v===String(q.answer)) x.classList.add("good"); });
+        splash("🤔","Bijna!", answerText(q));
+        setTimeout(advance, reduced?900:2300);
+      }
+    };
+  });
 }
 function bothFilled(){ var g=game; return g.current.two ? (g.typed!=="" && g.typed2!=="") : (g.typed!==""); }
 /* Eén kans per som: een fout antwoord telt als fout en blijft fout.
@@ -380,10 +813,13 @@ function timeUp(){
 }
 function revealInTiles(){
   var g=game,q=g.current,b1=$("#blankTile");
-  if(b1){ b1.classList.add("filled"); b1.textContent = q.two? q.c : q.answer; }
+  if(b1){ b1.classList.add("filled"); b1.textContent = q.gen? q.answer : (q.two? q.c : q.answer); }
   if(q.two){ var b2=$("#blankTile2"); if(b2){ b2.classList.add("filled"); b2.textContent=q.rem; } }
 }
-function answerText(q){ return q.two? ("Het juiste antwoord is "+q.c+" rest "+q.rem) : ("Het juiste antwoord is "+q.answer); }
+function answerText(q){
+  if(q.gen) return "Het juiste antwoord is "+q.answer+(q.unit? " "+q.unit:"");
+  return q.two? ("Het juiste antwoord is "+q.c+" rest "+q.rem) : ("Het juiste antwoord is "+q.answer);
+}
 function advance(){ hideSplash(); setGlow(0,"#FFD27A"); game.i++; nextQuestion(); }
 function updateProgress(){
   var g=game, pct=g.cfg.count>0?(g.i/g.cfg.count)*100:(g.total%12)/12*100;
@@ -399,17 +835,35 @@ function classShow(){
 }
 function renderClassControls(){
   var g=game;
+  /* Onderwerpen met woordknoppen (even/oneven, vormen, …) tonen die knoppen
+     ook op het digibord; de rest krijgt het cijferpad. */
+  var keuze = g.current.gen && g.current.choices;
+  var midden = keuze
+    ? '<div class="choices choices--tekst">'+g.current.choices.map(function(v){
+        return '<button class="choice choice--tekst" data-v="'+String(v).replace(/"/g,"&quot;")+'" type="button">'+v+'</button>';
+      }).join("")+'</div>'
+    : padMarkup();
   $("#input").innerHTML=
     '<div class="classbar">'+
       '<div class="handprompt" id="handPrompt"><span class="wave">✋</span> Wie weet het antwoord?</div>'+
-      padMarkup()+
+      midden+
       '<div class="classctrls">'+
         (g.i>0? '<button class="bigbtn bigbtn--prev" id="cPrev" type="button" aria-label="Vorige som">←</button>':'')+
         '<button class="bigbtn bigbtn--rev" id="cReveal" type="button">Toon antwoord</button>'+
       '</div>'+
       '<div class="somcount" id="cCount"></div>'+
     '</div>';
-  $$(".key").forEach(function(b){ b.onclick=function(){ classPad(b.dataset.k); }; });
+  if(keuze){
+    $$(".choice").forEach(function(b){
+      b.onclick=function(){
+        if(game.revealed) return;
+        if(b.dataset.v===String(game.current.answer)) classCorrect();
+        else { b.classList.add("bad"); classWrong(); }
+      };
+    });
+  } else {
+    $$(".key").forEach(function(b){ b.onclick=function(){ classPad(b.dataset.k); }; });
+  }
   $("#cReveal").onclick=revealClass;
   var p=$("#cPrev"); if(p) p.onclick=function(){ classGo(-1); };
 }
@@ -430,11 +884,16 @@ function classCheck(){
 function classWrong(){
   var g=game; sndBad(); shakeBlanks();
   g.typed=""; g.typed2=""; g.active=0; setBlankText(); syncCursor();
+  if(g.current.gen) renderEq();
   var hp=$("#handPrompt"); if(hp) hp.innerHTML='<span style="font-size:22px">🤔</span> Bijna! Denk nog eens goed na…';
+}
+function markClassChoice(){
+  var q=game.current;
+  if(q.gen && q.choices) $$(".choice").forEach(function(b){ if(b.dataset.v===String(q.answer)) b.classList.add("good"); });
 }
 function classCorrect(){
   var g=game; g.revealed=true; stopTimer(); setGlow(0,"#FFD27A");
-  revealInTiles();
+  revealInTiles(); markClassChoice();
   var hp=$("#handPrompt"); if(hp) hp.innerHTML='<span style="font-size:23px">🎉</span> Juist!';
   g.classRight++; sndGood(); if(!reduced) confetti(); splash("🎉","Goed zo!","");
   var last=(g.cfg.count>0 && g.i>=g.cfg.count-1);
@@ -442,8 +901,11 @@ function classCorrect(){
 }
 function revealClass(){
   var g=game; if(g.revealed) return;
-  g.revealed=true; stopTimer(); setGlow(0,"#FFD27A"); revealInTiles();
-  var hp=$("#handPrompt"); if(hp) hp.innerHTML='Het antwoord is <b style="color:var(--grass-deep)">'+(g.current.two?(g.current.c+" rest "+g.current.rem):g.current.answer)+'</b>';
+  g.revealed=true; stopTimer(); setGlow(0,"#FFD27A"); revealInTiles(); markClassChoice();
+  var hp=$("#handPrompt");
+  if(hp) hp.innerHTML='Het antwoord is <b style="color:var(--grass-deep)">'+
+    (g.current.two? (g.current.c+" rest "+g.current.rem)
+                  : (g.current.answer+(g.current.gen&&g.current.unit? " "+g.current.unit:"")))+'</b>';
   sndGood();
   var btn=$("#cReveal"), last=(g.cfg.count>0 && g.i>=g.cfg.count-1);
   btn.className="bigbtn bigbtn--next"; btn.textContent=last?"Klaar ✓":"Volgende som →";
@@ -543,6 +1005,7 @@ function confLoop(){
 function endGame(){ stopTimer(); hidePlayScreens(); $("#screenDone").classList.remove("hidden"); if(root.scrollTo) root.scrollTo(0,0); showResults(); }
 /* leesbare somtekst voor het overzicht */
 function reviewSom(q){
+  if(q.gen) return q.prompt.replace("⬚","___")+"  →  "+q.answer+(q.unit? " "+q.unit:"");
   if(q.op==="split") return "splits "+q.top+" → "+q.a+" en "+q.b;
   if(q.two) return q.a+" "+q.sym+" "+q.b+" = "+q.c+" rest "+q.rem;
   return q.a+" "+q.sym+" "+q.b+" = "+q.c;
@@ -620,7 +1083,14 @@ function chip(label,wide){ var b=document.createElement("button"); b.type="butto
 function makeSettings(host, st, onChange){
   onChange=onChange||function(){};
   host.innerHTML=
-    '<div class="block"><p class="block__label">Bewerkingen <span class="block__hint">kies één of meer</span></p><div class="ops" data-r="ops"></div></div>'+
+    '<div class="block"><p class="block__label">Graad</p><div class="chips" data-r="graad">'+
+      '<button class="chip chip--wide" data-g="1" type="button">1e graad</button>'+
+      '<button class="chip chip--wide" data-g="2" type="button">2e graad</button>'+
+      '<button class="chip chip--wide" data-g="3" type="button">3e graad</button>'+
+    '</div><p class="block__hint" data-r="graadHint" style="margin-top:8px"></p></div>'+
+    '<div class="block"><p class="block__label">Onderdeel <span class="block__hint">kies er één</span></p><div class="doms" data-r="doms"></div></div>'+
+    '<div class="block" data-r="topicBlock"><p class="block__label">Onderwerpen <span class="block__hint">kies er één of meer</span></p><div class="forms" data-r="topics"></div><div class="tinybtns"><button class="tinybtn" data-r="tpAll" type="button">Alles aan</button><button class="tinybtn" data-r="tpNone" type="button">Alles uit</button></div></div>'+
+    '<div class="block" data-r="opsBlock"><p class="block__label">Bewerkingen <span class="block__hint">kies één of meer</span></p><div class="ops" data-r="ops"></div></div>'+
     '<div class="block" data-r="tablesBlock"><p class="block__label">Maaltafels <span class="block__hint">voor × en ÷</span></p><div class="chips" data-r="tables"></div><div class="tinybtns"><button class="tinybtn" data-r="tAll" type="button">Alles</button><button class="tinybtn" data-r="tNone" type="button">Wissen</button></div></div>'+
     '<div class="block" data-r="rangeBlock"><p class="block__label">Getallenbereik <span class="block__hint">voor + en −</span></p><div class="chips" data-r="range"></div></div>'+
     '<div class="block" data-r="splitBlock"><p class="block__label">Splitsen van <span class="block__hint">kies één of meer getallen</span></p><div class="chips" data-r="splits"></div><div class="tinybtns"><button class="tinybtn" data-r="spAll" type="button">Alles</button><button class="tinybtn" data-r="spNone" type="button">Wissen</button></div></div>'+
@@ -631,13 +1101,72 @@ function makeSettings(host, st, onChange){
     '</div></div>'+
     '<div class="block" data-r="restBlock"><div class="switchrow"><div><b>Delen met rest</b><span>bv. 38 ÷ 7 = 5 rest 3</span></div><button class="switch" data-r="rest" type="button" aria-pressed="false" aria-label="Delen met rest aan/uit"></button></div></div>'+
     '<div class="block"><p class="block__label">Tijd per som <span class="block__hint">scherm gloeit op de laatste 5 sec</span></p><div class="chips" data-r="times"></div></div>'+
-    '<div class="block"><p class="block__label">Hoe antwoorden?</p><div class="chips" data-r="modes">'+
+    '<div class="block" data-r="modesBlock"><p class="block__label">Hoe antwoorden?</p><div class="chips" data-r="modes">'+
       '<button class="chip chip--wide" data-m="pad" type="button">🔢 Cijfers tikken</button>'+
       '<button class="chip chip--wide" data-m="mc" type="button">👉 Kiezen uit 4</button>'+
     '</div></div>'+
     '<div class="block"><p class="block__label">Aantal sommen</p><div class="chips" data-r="counts"></div></div>';
 
   var R=function(n){return host.querySelector('[data-r="'+n+'"]');};
+
+  // graad
+  $$(".chip",R("graad")).forEach(function(b){
+    b.onclick=function(){
+      var g=parseInt(b.dataset.g,10);
+      if(g===st.graad) return;
+      st.graad=g;
+      /* bereik meteen passend zetten, zodat de leerkracht niets moet nastellen */
+      st.range = g===1? 20 : (g===2? 100 : 1000);
+      if(g===1) st.tables=[2,5,10];
+      st.topics=[];
+      ensureTopics(); syncAll(); onChange();
+    };
+  });
+  function syncGraad(){
+    $$(".chip",R("graad")).forEach(function(b){ b.setAttribute("aria-pressed", parseInt(b.dataset.g,10)===st.graad); });
+    R("graadHint").textContent=GRAAD_LABEL[st.graad];
+  }
+
+  // domeinen
+  DOMEINEN.forEach(function(d){
+    var b=document.createElement("button"); b.type="button"; b.className="dombtn"; b.dataset.id=d.id;
+    b.innerHTML='<span class="dombtn__s">'+d.sym+'</span><span class="dombtn__l">'+d.label+'</span><span class="dombtn__sub">'+d.sub+'</span>';
+    b.onclick=function(){ if(st.domein===d.id) return; st.domein=d.id; st.topics=[]; ensureTopics(); syncAll(); onChange(); };
+    R("doms").appendChild(b);
+  });
+  function syncDoms(){ $$(".dombtn",R("doms")).forEach(function(b){ b.setAttribute("aria-pressed", b.dataset.id===st.domein); }); }
+
+  // onderwerpen binnen het domein
+  function ensureTopics(){
+    if(st.domein==="bew"){ st.topics=[]; return; }
+    var lijst=topicsFor(st.domein,st.graad);
+    st.topics=(st.topics||[]).filter(function(id){ return topicById(st.domein,st.graad,id); });
+    if(!st.topics.length && lijst.length) st.topics=[lijst[0].id];
+  }
+  R("tpAll").onclick=function(){ st.topics=topicsFor(st.domein,st.graad).map(function(t){return t.id;}); syncTopics(); onChange(); };
+  R("tpNone").onclick=function(){ st.topics=st.topics.slice(0,1); syncTopics(); onChange(); };
+  function syncTopics(){
+    var box=R("topics"); box.innerHTML="";
+    var lijst=topicsFor(st.domein,st.graad);
+    if(!lijst.length){
+      box.innerHTML='<p class="leegmelding">Voor deze graad zit dit onderdeel nog niet in de leerlijn. Kies een andere graad of een ander onderdeel.</p>';
+      return;
+    }
+    lijst.forEach(function(t){
+      var on=st.topics.indexOf(t.id)>-1;
+      var b=document.createElement("button"); b.type="button"; b.className="form-opt"; b.setAttribute("aria-pressed",on);
+      b.innerHTML='<span class="form-opt__demo">'+t.sub+'</span>'+
+                  '<span class="form-opt__txt"><b>'+t.label+'</b></span>'+
+                  '<span class="form-opt__tick">✓</span>';
+      b.onclick=function(){
+        var i=st.topics.indexOf(t.id);
+        if(i>-1){ if(st.topics.length>1) st.topics.splice(i,1); }
+        else st.topics.push(t.id);
+        syncTopics(); onChange();
+      };
+      box.appendChild(b);
+    });
+  }
 
   // bewerkingen
   OPS.forEach(function(o){
@@ -718,26 +1247,33 @@ function makeSettings(host, st, onChange){
   function syncCounts(){ $$(".chip",R("counts")).forEach(function(b,i){ b.setAttribute("aria-pressed", COUNT_OPTS[i].v===st.count); }); }
 
   function refreshVis(){
-    var hasMD = st.ops.indexOf("mul")>-1 || st.ops.indexOf("div")>-1;
-    var hasAS = st.ops.indexOf("add")>-1 || st.ops.indexOf("sub")>-1;
-    var hasDiv = st.ops.indexOf("div")>-1;
-    var hasSplit = st.ops.indexOf("split")>-1;
+    var bew = st.domein==="bew";
+    /* Alleen wat bij het gekozen onderdeel hoort, blijft staan. Zo zie je
+       nooit meer dan een handvol blokken tegelijk. */
+    R("topicBlock").classList.toggle("hidden", bew);
+    R("opsBlock").classList.toggle("hidden", !bew);
+    var hasMD = bew && (st.ops.indexOf("mul")>-1 || st.ops.indexOf("div")>-1);
+    var hasAS = bew && (st.ops.indexOf("add")>-1 || st.ops.indexOf("sub")>-1);
+    var hasDiv = bew && st.ops.indexOf("div")>-1;
+    var hasSplit = bew && st.ops.indexOf("split")>-1;
     var onlySplit = hasSplit && st.ops.length===1;
     R("tablesBlock").classList.toggle("hidden", !hasMD);
     R("rangeBlock").classList.toggle("hidden", !hasAS);
     R("splitBlock").classList.toggle("hidden", !hasSplit);
-    R("formsBlock").classList.toggle("hidden", onlySplit); // bij splitsen is er maar één somtype
+    R("formsBlock").classList.toggle("hidden", !bew || onlySplit); // bij splitsen is er maar één somtype
     R("restBlock").classList.toggle("hidden", !hasDiv);
+    R("modesBlock").classList.toggle("hidden", !bew);             // andere onderdelen kiezen dat zelf
     var restOn = hasDiv && st.rest;
     var mcBtn = host.querySelector('[data-m="mc"]');
     mcBtn.disabled = restOn;
     if(restOn && st.mode==="mc"){ st.mode="pad"; }
     syncModes();
   }
-  function syncAll(){ syncOps(); syncTables(); syncRange(); syncSplits(); syncForms(); R("rest").setAttribute("aria-pressed",st.rest); syncTimes(); syncModes(); syncCounts(); refreshVis(); }
+  function syncAll(){ syncGraad(); syncDoms(); syncTopics(); syncOps(); syncTables(); syncRange(); syncSplits(); syncForms(); R("rest").setAttribute("aria-pressed",st.rest); syncTimes(); syncModes(); syncCounts(); refreshVis(); }
 
+  ensureTopics();
   syncAll();
-  return { sync:syncAll };
+  return { sync:function(){ ensureTopics(); syncAll(); } };
 }
 function formOpt(f,demo,title,sub){
   return '<button class="form-opt" data-f="'+f+'" type="button" aria-pressed="false">'+
@@ -756,7 +1292,9 @@ var api={
   setOnExit:function(fn){ onExit=fn; },
   toggleSound:function(){ soundOn=!soundOn; var b=$("#soundBtn"); if(b) b.textContent=soundOn?"🔊":"🔈"; if(soundOn) ac(); return soundOn; },
   resumeAudio:ac,
-  OPS:OPS, RANGE_OPTS:RANGE_OPTS, SPLIT_OPTS:SPLIT_OPTS, FORM_LABEL:FORM_LABEL
+  OPS:OPS, RANGE_OPTS:RANGE_OPTS, SPLIT_OPTS:SPLIT_OPTS, FORM_LABEL:FORM_LABEL,
+  DOMEINEN:DOMEINEN, domeinById:domeinById, GRAAD_LABEL:GRAAD_LABEL,
+  TOPICS:TOPICS, topicsFor:topicsFor, topicById:topicById, genAny:genAny
 };
 root.MK=api;
 if(typeof module!=="undefined" && module.exports) module.exports=api;
