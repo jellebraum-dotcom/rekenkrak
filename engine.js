@@ -820,7 +820,7 @@ function answerText(q){
   if(q.gen) return "Het juiste antwoord is "+q.answer+(q.unit? " "+q.unit:"");
   return q.two? ("Het juiste antwoord is "+q.c+" rest "+q.rem) : ("Het juiste antwoord is "+q.answer);
 }
-function advance(){ hideSplash(); setGlow(0,"#FFD27A"); game.i++; nextQuestion(); }
+function advance(){ meldSessie(false); hideSplash(); setGlow(0,"#FFD27A"); game.i++; nextQuestion(); }
 function updateProgress(){
   var g=game, pct=g.cfg.count>0?(g.i/g.cfg.count)*100:(g.total%12)/12*100;
   $("#progFill").style.width=pct+"%";
@@ -1002,7 +1002,24 @@ function confLoop(){
 }
 
 /* ---------- resultaat (zelf) ---------- */
-function endGame(){ stopTimer(); hidePlayScreens(); $("#screenDone").classList.remove("hidden"); if(root.scrollTo) root.scrollTo(0,0); showResults(); }
+function endGame(){ meldSessie(true); stopTimer(); hidePlayScreens(); $("#screenDone").classList.remove("hidden"); if(root.scrollTo) root.scrollTo(0,0); showResults(); }
+/* ---------- live sessie (optioneel) ----------
+   Draait alleen als krak-sessie.js geladen is én het kind via een sessielink
+   binnenkwam. Zonder sessie, zonder netwerk of zonder die bestanden gebeurt
+   er simpelweg niets — de oefening zelf mag hier nooit op stuklopen. */
+var sessieRonde = 0;
+function setSessieRonde(n){ sessieRonde = n|0; }
+function inSessie(){ return sessieRonde > 0; }
+function meldSessie(klaar){
+  if(!sessieRonde || typeof KrakSessie==="undefined" || !game) return;
+  try{
+    var fouten = game.log.filter(function(e){ return !e.ok; }).map(function(e){
+      return { v: reviewSom(e.q), a: e.timeout? "" : (e.wrong || "") };
+    });
+    KrakSessie.meld(sessieRonde, game.firstTry, game.total, !!klaar, fouten);
+  }catch(e){}
+}
+
 /* leesbare somtekst voor het overzicht */
 function reviewSom(q){
   if(q.gen) return q.prompt.replace("⬚","___")+"  →  "+q.answer+(q.unit? " "+q.unit:"");
@@ -1044,10 +1061,10 @@ function showResults(){
     '</div>'+
     reviewHTML(g.log)+
     '<div class="results__btns">'+
-      '<button class="btn btn--grass" id="again" type="button">↻ Nog eens</button>'+
+      (inSessie()? '' : '<button class="btn btn--grass" id="again" type="button">↻ Nog eens</button>')+
       '<button class="btn btn--ghost" id="exit" type="button">🏠 Klaar</button>'+
     '</div>';
-  $("#again").onclick=function(){ startGame(g.cfg); };
+  if($("#again")) $("#again").onclick=function(){ startGame(g.cfg); };
   $("#exit").onclick=function(){ onExit(); };
   if(pct>=70 && !reduced) setTimeout(confetti,250); sndGood();
 }
@@ -1294,7 +1311,8 @@ var api={
   resumeAudio:ac,
   OPS:OPS, RANGE_OPTS:RANGE_OPTS, SPLIT_OPTS:SPLIT_OPTS, FORM_LABEL:FORM_LABEL,
   DOMEINEN:DOMEINEN, domeinById:domeinById, GRAAD_LABEL:GRAAD_LABEL,
-  TOPICS:TOPICS, topicsFor:topicsFor, topicById:topicById, genAny:genAny
+  TOPICS:TOPICS, topicsFor:topicsFor, topicById:topicById, genAny:genAny,
+  setSessieRonde:setSessieRonde, inSessie:inSessie, meldSessie:meldSessie
 };
 root.MK=api;
 if(typeof module!=="undefined" && module.exports) module.exports=api;

@@ -1,8 +1,9 @@
 /* Rekenkrak service worker — app-shell cache voor offline gebruik */
-var CACHE = "rekenkrak-v6";
+var CACHE = "rekenkrak-v7";
 var ASSETS = [
   "./", "index.html", "leerkracht.html", "rekenkrak.css",
   "engine.js", "jsqr.js", "qrcode.js", "manifest.webmanifest",
+  "krak-config.js", "krak-sessie.js",
   "icon-192.png", "icon-512.png", "icon-512-maskable.png", "apple-touch-icon.png"
 ];
 self.addEventListener("install", function(e){

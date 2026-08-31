@@ -13,6 +13,23 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Rekenkrak">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+/* Klassessie: naam vragen en wachten op de juf */
+.naaminput{ width:100%; font:inherit; font-size:20px; padding:14px 16px; margin:14px 0 6px;
+            border:2px solid rgba(0,0,0,.12); border-radius:14px; background:#fff; }
+.naaminput:focus{ outline:none; border-color:#2FA8C6; }
+.naamfout{ color:#B23A2A; font-weight:600; }
+.bigcard--code .bigcard__ic{ background:#FFF3D6; }
+.codeinput{ text-transform:uppercase; letter-spacing:.32em; text-align:center;
+            font-weight:800; font-size:30px; font-family:ui-monospace,Menlo,Consolas,monospace; }
+.wachtkamer{ min-height:100dvh; display:flex; flex-direction:column; align-items:center;
+             justify-content:center; text-align:center; padding:32px 24px; gap:6px; }
+.wachtkamer__emo{ font-size:64px; line-height:1; margin-bottom:6px; }
+.wachtkamer__titel{ font-size:26px; margin:0; }
+.wachtkamer__tekst{ font-size:17px; opacity:.75; margin:4px 0 22px; max-width:22em; }
+.sessiebalk{ position:fixed; left:0; right:0; top:0; padding:6px 12px; font-size:13px;
+             text-align:center; background:rgba(0,0,0,.06); z-index:5; }
+</style>
 </head>
 <body>
 
@@ -25,6 +42,10 @@
     <button class="bigcard bigcard--self" id="goSelf" type="button">
       <span class="bigcard__ic" aria-hidden="true">🔢</span>
       <span class="bigcard__tx"><b>Zelf oefenen</b><span>Kies je bewerkingen en alle opties zelf</span></span>
+    </button>
+    <button class="bigcard bigcard--code" id="goCode" type="button">
+      <span class="bigcard__ic" aria-hidden="true">👩‍🏫</span>
+      <span class="bigcard__tx"><b>Doe mee met de klas</b><span>Vul de code in die de juf of meester toont</span></span>
     </button>
     <button class="bigcard bigcard--scan" id="goScan" type="button">
       <span class="bigcard__ic" aria-hidden="true">📷</span>
@@ -62,6 +83,34 @@
   <canvas id="scanCanvas" class="hidden"></canvas>
 </main>
 
+<!-- ============ KLASSESSIE: HOE HEET JE? ============ -->
+<main class="setup hidden" id="screenNaam">
+  <div class="setup__head">
+    <button class="backbtn" id="naamBack" type="button" aria-label="Terug">←</button>
+    <h2 class="setup__title">Doe mee met de klas</h2>
+  </div>
+  <section class="panel">
+    <div id="codeRij">
+      <p class="note">Vul de code in die je juf of meester toont.</p>
+      <input class="naaminput codeinput" id="codeInput" maxlength="4" autocomplete="off"
+             autocapitalize="characters" spellcheck="false" placeholder="ABCD" aria-label="Code van de klas">
+    </div>
+    <p class="note">Hoe heet je? Je voornaam volstaat — zo weet je juf of meester wie meedoet.</p>
+    <input class="naaminput" id="naamInput" maxlength="30" autocomplete="off"
+           autocapitalize="words" placeholder="Bijvoorbeeld: Lars" aria-label="Je voornaam">
+    <p class="note naamfout hidden" id="naamFout"></p>
+    <button class="btn btn--grass btn--block" id="naamOk" type="button" style="font-size:17px;padding:16px">Doe mee</button>
+  </section>
+</main>
+
+<!-- ============ KLASSESSIE: WACHTEN ============ -->
+<main class="wachtkamer hidden" id="screenWacht">
+  <div class="wachtkamer__emo" id="wachtEmo">⏳</div>
+  <h2 class="wachtkamer__titel" id="wachtTitel">Even wachten</h2>
+  <p class="wachtkamer__tekst" id="wachtTekst">De juf of meester zet de oefening klaar.</p>
+  <button class="btn btn--ghost" id="wachtWeg" type="button">Sessie verlaten</button>
+</main>
+
 <!-- ===================== SPELER ===================== -->
 <main class="play hidden" id="screenPlay">
   <div class="play__top">
@@ -94,20 +143,29 @@
 <canvas id="confetti"></canvas>
 
 <script src="jsqr.js"></script>
+<script src="krak-config.js"></script>
+<script src="krak-sessie.js"></script>
 <script src="engine.js"></script>
 <script>
 (function(){
 "use strict";
 var $=function(s){return document.querySelector(s);};
 var SETUP = MK.defaults();
+var K_AAN = (typeof KrakSessie!=="undefined" && KrakSessie.ingesteld());
+var sessieCode = K_AAN ? KrakSessie.codeUitHash() : null;
+var stopOpdracht = null;
 
-function hideAll(){ ["#screenHome","#screenSetup","#screenScan","#screenPlay","#screenDone"].forEach(function(id){ $(id).classList.add("hidden"); }); }
+function hideAll(){ ["#screenHome","#screenSetup","#screenScan","#screenPlay","#screenDone","#screenNaam","#screenWacht"].forEach(function(id){ $(id).classList.add("hidden"); }); }
 function showHome(){ hideAll(); document.body.style.background=""; $("#screenHome").classList.remove("hidden"); window.scrollTo(0,0); }
 function goHome(){ stopScan(); if(location.hash){ history.replaceState(null,"",location.pathname+location.search); } showHome(); }
 function showSetup(){ MK.resumeAudio(); hideAll(); $("#screenSetup").classList.remove("hidden"); window.scrollTo(0,0); }
 
 MK.makeSettings($("#settingsHost"), SETUP, function(){});
-MK.setOnExit(goHome);
+MK.setOnExit(function(){
+  var d = sessieCode && KrakSessie.deelname(sessieCode);
+  if(d) toonWacht("Goed gedaan, "+d.voornaam+"!", "Wacht op de volgende oefening.", "🌟");
+  else goHome();
+});
 
 
 /* Terugkeer-regels: bij "Zelf oefenen" kan het kind altijd terug naar het
@@ -149,6 +207,8 @@ function scanLoop(){
       if(img){
         var code=jsQR(img.data,w,h,{inversionAttempts:"dontInvert"});
         if(code && code.data){
+          var sc = (typeof KrakSessie!=="undefined") ? KrakSessie.codeUitHash(code.data) : null;
+          if(sc){ if(navigator.vibrate) navigator.vibrate(60); stopScan(); sessieCode=sc; startSessie(); return; }
           var cfg=MK.parseParams(code.data);
           if(cfg){ cfg.session="self"; if(navigator.vibrate) navigator.vibrate(60); stopScan(); setQuit(cfg.count===0); MK.startGame(cfg); return; }
           else { $("#scanHint").textContent="Dat is geen Rekenkrak-code 🤔"; }
@@ -169,9 +229,97 @@ function scanError(msg){ $("#scanErrMsg").textContent=msg; $("#scanOverlay").cla
 /* ---------- service worker ---------- */
 if("serviceWorker" in navigator){ window.addEventListener("load",function(){ navigator.serviceWorker.register("sw.js").catch(function(){}); }); }
 
+/* ---------- klassessie ----------
+   Zit er een sessiecode in de link (of in de gescande QR), dan bepaalt de
+   juf of meester wat er geoefend wordt. Het toestel vraagt elke twee
+   seconden of er een nieuwe oefening klaarstaat en schakelt dan mee over. */
+function toonNaam(fout){
+  hideAll(); $("#screenNaam").classList.remove("hidden");
+  var kenCode = !!sessieCode;
+  $("#codeRij").classList.toggle("hidden", kenCode);
+  var f=$("#naamFout");
+  if(fout){ f.textContent=fout; f.classList.remove("hidden"); } else f.classList.add("hidden");
+  window.scrollTo(0,0);
+  setTimeout(function(){
+    try{ (kenCode? $("#naamInput") : $("#codeInput")).focus(); }catch(e){}
+  }, 60);
+}
+function toonWacht(titel, tekst, emo){
+  hideAll(); $("#screenWacht").classList.remove("hidden");
+  $("#wachtEmo").textContent = emo || "⏳";
+  $("#wachtTitel").textContent = titel;
+  $("#wachtTekst").textContent = tekst || "";
+  window.scrollTo(0,0);
+}
+function startSessie(){
+  if(!sessieCode) return showHome();
+  if(KrakSessie.deelname(sessieCode)) volgSessie(); else toonNaam("");
+}
+function volgSessie(){
+  var d = KrakSessie.deelname(sessieCode);
+  if(!d) return toonNaam("");
+  function wachten(){ toonWacht("Hallo "+d.voornaam+"!", "Wacht even — de juf of meester zet de oefening klaar."); }
+  wachten();
+  if(stopOpdracht) stopOpdracht();
+  stopOpdracht = KrakSessie.volgOpdracht(function(st){
+    if(!st.gevonden){ MK.setSessieRonde(0); return toonWacht("Deze code werkt niet meer", "Vraag je juf of meester om een nieuwe.", "🤔"); }
+    if(!st.actief){  MK.setSessieRonde(0); return toonWacht("Tot de volgende keer!", "De juf of meester heeft de oefeningen afgesloten.", "👋"); }
+    if(!st.nummer){  MK.setSessieRonde(0); return wachten(); }
+    var cfg = MK.parseParams(st.config);
+    if(!cfg){ return toonWacht("Hmm", "Deze oefening kan ik niet openen.", "🤔"); }
+    KrakSessie.spoel();               /* stand van de vorige oefening nog wegschrijven */
+    cfg.session = "self";
+    MK.setSessieRonde(st.nummer);
+    hideAll(); setQuit(false);
+    MK.startGame(cfg);
+  }, 2000);
+}
+$("#naamOk").onclick=function(){
+  if(!sessieCode){
+    var ingetikt=($("#codeInput").value||"").trim().toUpperCase();
+    if(!/^[A-Z0-9]{4}$/.test(ingetikt)) return toonNaam("De code bestaat uit vier tekens, bijvoorbeeld ABCD.");
+    sessieCode=ingetikt;
+  }
+  var naam=($("#naamInput").value||"").trim();
+  if(!naam) return toonNaam("Vul ook je voornaam in.");
+  var knop=this; knop.disabled=true;
+  KrakSessie.join(sessieCode, naam)
+    .then(function(){
+      /* code in de adresbalk: dan blijft het kind in de sessie na een verversing */
+      try{ if(!KrakSessie.codeUitHash()) location.hash="ls="+sessieCode; }catch(e){}
+      volgSessie();
+    })
+    .catch(function(f){
+      var uitLink = !!KrakSessie.codeUitHash();
+      if(f.message==="sessie_niet_gevonden" && !uitLink) sessieCode=null;  /* code opnieuw laten intikken */
+      toonNaam(f.message==="sessie_niet_gevonden" ? "Die code kennen we niet (meer). Kijk nog eens goed."
+             : f.message==="ongeldige_voornaam"   ? "Vul ook je voornaam in."
+             : "Meedoen lukte niet. Probeer het nog eens.");
+    })
+    .then(function(){ knop.disabled=false; });
+};
+$("#naamInput").addEventListener("keydown", function(e){ if(e.key==="Enter") $("#naamOk").click(); });
+$("#codeInput").addEventListener("keydown", function(e){ if(e.key==="Enter") $("#naamInput").focus(); });
+$("#naamBack").onclick=function(){ if(!KrakSessie.codeUitHash()) sessieCode=null; goHome(); };
+$("#goCode").onclick=function(){
+  if(!K_AAN){ return alert("Live sessies zijn hier nog niet ingesteld."); }
+  MK.resumeAudio(); sessieCode=null; $("#codeInput").value=""; $("#naamInput").value=""; toonNaam("");
+};
+$("#wachtWeg").onclick=function(){
+  if(stopOpdracht){ stopOpdracht(); stopOpdracht=null; }
+  KrakSessie.verlaat(sessieCode);
+  MK.setSessieRonde(0);
+  sessieCode=null;
+  goHome();
+};
+
 /* ---------- opstarten ---------- */
-var cfg=MK.parseParams(location.hash);
-if(cfg){ cfg.session="self"; setQuit(cfg.count===0); MK.startGame(cfg); } else { showHome(); }
+if(!K_AAN) $("#goCode").classList.add("hidden");
+if(sessieCode){ startSessie(); }
+else {
+  var cfg=MK.parseParams(location.hash);
+  if(cfg){ cfg.session="self"; setQuit(cfg.count===0); MK.startGame(cfg); } else { showHome(); }
+}
 })();
 </script>
 </body>
