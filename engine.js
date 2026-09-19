@@ -13,8 +13,18 @@ var reduced = (root.matchMedia && root.matchMedia("(prefers-reduced-motion: redu
 /* ---------- constanten ---------- */
 var TIME_OPTS=[{v:0,l:"Geen"},{v:3,l:"3 sec"},{v:5,l:"5 sec"},{v:10,l:"10 sec"},{v:15,l:"15 sec"},{v:20,l:"20 sec"}];
 var COUNT_OPTS=[{v:5,l:"5"},{v:10,l:"10"},{v:15,l:"15"},{v:20,l:"20"},{v:0,l:"∞"}];
-var RANGE_OPTS=[{v:20,l:"tot 20"},{v:100,l:"tot 100"},{v:1000,l:"tot 1000"}];
-var SPLIT_OPTS=[10,20,30,40,50,60,70,80,90,100];
+/* l1:true betekent: hoort bij het eerste leerjaar en is elders niet zichtbaar. */
+var RANGE_OPTS=[{v:6,l:"tot 6",l1:true},{v:10,l:"tot 10",l1:true},
+                {v:20,l:"tot 20"},{v:100,l:"tot 100"},{v:1000,l:"tot 1000"}];
+var RANGE_WAARDEN=RANGE_OPTS.map(function(o){return o.v;});
+/* -6 en -10 zijn geen getallen om te splitsen, maar de keuzes "tot 6" en
+   "tot 10": elke opgave splitst dan een willekeurig getal in dat bereik.
+   Allebei horen ze bij het eerste leerjaar en staan ze daar alleen. */
+var SPLIT_TOT6=-6, SPLIT_TOT10=-10;
+var SPLIT_L1=[SPLIT_TOT6,SPLIT_TOT10];
+var SPLIT_OPTS=[SPLIT_TOT6,SPLIT_TOT10,10,20,30,40,50,60,70,80,90,100];
+function splitL1(v){ return SPLIT_L1.indexOf(v)>-1; }
+function splitLabel(v){ return v===SPLIT_TOT6? "tot 6" : (v===SPLIT_TOT10? "tot 10" : String(v)); }
 var OPS=[
   {id:"add",sym:"+",word:"Plus",tok:"a"},
   {id:"sub",sym:"−",word:"Min",tok:"s"},
@@ -26,7 +36,7 @@ var TOK2OP={a:"add",s:"sub",m:"mul",d:"div",p:"split"};
 var OP2TOK={add:"a",sub:"s",mul:"m",div:"d",split:"p"};
 var FORM_LABEL={0:"Antwoord",1:"Eerste getal",2:"Tweede getal"};
 
-function defaults(){ return {graad:2,domein:"bew",topics:[],ops:["mul"],tables:[2,5,10],range:100,splits:[10],forms:[0],rest:false,seconds:0,count:10,mode:"pad",session:"self"}; }
+function defaults(){ return {graad:2,jaar:0,domein:"bew",topics:[],ops:["mul"],tables:[2,5,10],range:100,splits:[10],forms:[0],rest:false,seconds:0,count:10,mode:"pad",session:"self"}; }
 
 /* =====================================================================
    DOMEINEN — de vijf leergebieden van wiskunde in het lager onderwijs.
@@ -34,6 +44,12 @@ function defaults(){ return {graad:2,domein:"bew",topics:[],ops:["mul"],tables:[
    het scherm overzichtelijk, ook nu er veel meer leerstof in zit.
    ===================================================================== */
 var GRAAD_LABEL={1:"1e graad (L1–L2)",2:"2e graad (L3–L4)",3:"3e graad (L5–L6)"};
+/* De 1e graad is gesplitst in L1 en L2: alleen in L1 horen de kleinste
+   bereiken thuis. jaar is 1 of 2 binnen de 1e graad, en 0 daarbuiten. */
+var JAAR_LABEL={1:"1e leerjaar",2:"2e leerjaar"};
+function niveauLabel(graad,jaar){
+  return (graad===1 && JAAR_LABEL[jaar])? JAAR_LABEL[jaar] : GRAAD_LABEL[graad];
+}
 var DOMEINEN=[
   {id:"bew",   sym:"+−×÷", label:"Bewerkingen",   sub:"plus, min, keer, gedeeld, splitsen"},
   {id:"getal", sym:"123",  label:"Getallenkennis", sub:"tellen, ordenen, plaatswaarde"},
@@ -154,7 +170,7 @@ getal:{
     return G("Hoeveel "+k[0]+" heeft "+n+"?", Math.floor(n/k[1])%10, {key:"pw3"+n+k[0]});
   }},
   {id:"afr3", label:"Afronden", sub:"op duizend", gen:function(c){
-    var n=rnd(10050,999499);
+    var n=rnd(10050,994499);   /* hoger rondt af op 1000000: 7 cijfers, niet in te tikken */
     var k=pick([["honderdtal",100],["duizendtal",1000],["tienduizendtal",10000]]);
     return G("Rond "+n+" af op het "+k[0]+".", Math.round(n/k[1])*k[1], {key:"afr3"+n+k[0]});
   }},
@@ -399,7 +415,7 @@ function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()
    URL <-> instellingen
    ===================================================================== */
 function buildHash(c){
-  return "#g="+c.graad+"&d="+c.domein+
+  return "#g="+c.graad+"&j="+(c.jaar||0)+"&d="+c.domein+
          "&o="+c.ops.map(function(o){return OP2TOK[o];}).join(",")+
          "&t="+c.tables.join(",")+
          "&r="+c.range+
@@ -420,7 +436,7 @@ function parseParams(str){
   var c={
     ops:ops,
     tables:nums(p.t).filter(function(n){return n>=1&&n<=10;}),
-    range:[20,100,1000].indexOf(parseInt(p.r,10))>-1?parseInt(p.r,10):100,
+    range:RANGE_WAARDEN.indexOf(parseInt(p.r,10))>-1?parseInt(p.r,10):100,
     splits:nums(p.sp).filter(function(n){return SPLIT_OPTS.indexOf(n)>-1;}),
     forms:nums(p.f).filter(function(n){return n>=0&&n<=2;}),
     rest:(p.rest==="1"),
@@ -438,6 +454,9 @@ function parseParams(str){
      en worden als een bewerkingen-oefening geopend. */
   var g=parseInt(p.g,10);
   c.graad=(g===1||g===2||g===3)? g : (c.range<=20?1:(c.range>=1000?3:2));
+  /* Oudere links kennen j nog niet: een klein bereik wijst dan op L1. */
+  var j=parseInt(p.j,10);
+  c.jaar=(c.graad===1)? ((j===1||j===2)? j : (c.range<=10?1:2)) : 0;
   c.domein=(p.d && TOPICS[p.d])? p.d : "bew";
   c.topics=(p.tp||"").split(",").filter(function(id){ return topicById(c.domein,c.graad,id); });
   if(c.domein!=="bew" && !c.topics.length){
@@ -478,7 +497,9 @@ function genDivRem(tables){
   return {op:"divr",sym:"÷",a:a,b:b,c:q,rem:r,two:true,answer:q,key:"r"+a+"_"+b};
 }
 function genSplit(splits){
-  var top=pick(splits), a=rnd(0,top), b=top-a;
+  var keuze=pick(splits);
+  var top=(keuze===SPLIT_TOT6)? rnd(2,6) : ((keuze===SPLIT_TOT10)? rnd(2,10) : keuze);
+  var a=rnd(0,top), b=top-a;
   var blankLeg=rnd(0,1);                 // welk been is verstopt?
   var answer = blankLeg===0? a : b;
   return {op:"split",top:top,a:a,b:b,blankLeg:blankLeg,answer:answer,key:"p"+top+"_"+a+"_"+blankLeg};
@@ -531,8 +552,12 @@ function choicesFor(q){
   if(q.op==="split"){ cand=cand.filter(function(v){return v<=q.top;}); }
   shuffle(cand);
   for(var i=0;i<cand.length && out.length<4;i++){ if(!set[cand[i]]){set[cand[i]]=true;out.push(cand[i]);} }
-  var lim = q.op==="split"? q.top : Math.max(20,ans+5);
-  while(out.length<4){ var r=rnd(0,lim); if(!set[r]){set[r]=true;out.push(r);} }
+  /* Bij een kleine splitsing (bv. splits 3) bestaan er te weinig verschillende
+     getallen voor vier knoppen: ruimer bereik en een harde begrenzing, anders
+     blijft deze lus eeuwig zoeken en loopt de app vast. */
+  var lim = q.op==="split"? Math.max(q.top+2,6) : Math.max(20,ans+5);
+  var pogingen=0;
+  while(out.length<4 && pogingen++<300){ var r=rnd(0,lim); if(!set[r]){set[r]=true;out.push(r);} }
   return shuffle(out);
 }
 
@@ -682,8 +707,17 @@ function renderPad(){
    naar het volgende lege vakje). De korte pauze verklapt niet hoeveel cijfers
    het antwoord telt; elke nieuwe toetsaanslag annuleert de geplande controle.
    Het kind hoeft nooit ✓ te tikken. */
-var AUTO_DELAY=250, autoT=null;
-function cancelAuto(){ if(autoT){ clearTimeout(autoT); autoT=null; } }
+var AUTO_DELAY=250, autoT=null, autoFn=null;
+function cancelAuto(){ if(autoT){ clearTimeout(autoT); autoT=null; } autoFn=null; }
+/* Staat er nog een controle klaar, voer ze dan meteen uit. Zo telt een antwoord
+   dat het kind net voor de bel volledig intikte, ook echt mee. */
+function flushAuto(){
+  if(!autoT) return false;
+  clearTimeout(autoT); autoT=null;
+  var fn=autoFn; autoFn=null;
+  if(fn) performAuto(fn);
+  return true;
+}
 function fieldTarget(fld){
   var q=game.current;
   if(q.gen) return q.answer;
@@ -694,7 +728,8 @@ function autoStep(check){
   cancelAuto();
   var g=game,fld=curField();
   if(String(g[fld]).length < String(fieldTarget(fld)).length) return;
-  autoT=setTimeout(function(){ autoT=null; performAuto(check); }, AUTO_DELAY);
+  autoFn=check;
+  autoT=setTimeout(function(){ autoT=null; autoFn=null; performAuto(check); }, AUTO_DELAY);
 }
 function performAuto(check){
   var g=game; if(!g) return;
@@ -710,8 +745,18 @@ function performAuto(check){
   }
   check();
 }
+/* Op een touchscreen of digibord wordt een tik soms twee keer geteld. Twee
+   identieke tikken binnen 70 ms zijn nooit menselijk: die tweede slaan we over,
+   anders wordt 5 ineens 55 en telt een juist antwoord als fout. */
+var laatsteTik={k:null,t:0};
+function echoTik(k){
+  var nu=(root.performance&&performance.now)?performance.now():Date.now();
+  if(k===laatsteTik.k && (nu-laatsteTik.t)<70){ laatsteTik.t=nu; return true; }
+  laatsteTik={k:k,t:nu}; return false;
+}
 function padPress(k){
   var g=game; if(g.locked) return;
+  if(k!=="del" && k!=="ok" && echoTik(k)) return;
   var fld=curField();
   if(k==="del"){ cancelAuto(); g[fld]=g[fld].slice(0,-1); setBlankText(); return; }
   else if(k==="ok"){ cancelAuto(); submitSelf(); return; }
@@ -804,6 +849,12 @@ function timeUp(){
     return;
   }
   if(g.locked) return;
+  /* Het kind tikte het antwoord net voor de bel volledig in: die controle stond
+     al klaar en krijgt voorrang op "tijd om". Anders werd een juist antwoord
+     als fout gerekend. */
+  flushAuto();
+  if(g.locked) return;
+  cancelAuto();
   g.locked=true; stopTimer(); g.total++; g.wrongOnce=false;
   g.log.push({q:g.current, ok:false, wrong:null, timeout:true});
   revealInTiles();
@@ -869,6 +920,7 @@ function renderClassControls(){
 }
 function classPad(k){
   var g=game; if(g.revealed) return;
+  if(k!=="del" && k!=="ok" && echoTik(k)) return;
   var fld=curField();
   if(k==="del"){ cancelAuto(); g[fld]=g[fld].slice(0,-1); setBlankText(); return; }
   else if(k==="ok"){ cancelAuto(); classCheck(); return; }
@@ -1100,10 +1152,11 @@ function chip(label,wide){ var b=document.createElement("button"); b.type="butto
 function makeSettings(host, st, onChange){
   onChange=onChange||function(){};
   host.innerHTML=
-    '<div class="block"><p class="block__label">Graad</p><div class="chips" data-r="graad">'+
-      '<button class="chip chip--wide" data-g="1" type="button">1e graad</button>'+
-      '<button class="chip chip--wide" data-g="2" type="button">2e graad</button>'+
-      '<button class="chip chip--wide" data-g="3" type="button">3e graad</button>'+
+    '<div class="block"><p class="block__label">Leerjaar</p><div class="chips" data-r="graad">'+
+      '<button class="chip chip--wide" data-g="1" data-j="1" type="button">L1</button>'+
+      '<button class="chip chip--wide" data-g="1" data-j="2" type="button">L2</button>'+
+      '<button class="chip chip--wide" data-g="2" data-j="0" type="button">2e graad</button>'+
+      '<button class="chip chip--wide" data-g="3" data-j="0" type="button">3e graad</button>'+
     '</div><p class="block__hint" data-r="graadHint" style="margin-top:8px"></p></div>'+
     '<div class="block"><p class="block__label">Onderdeel <span class="block__hint">kies er één</span></p><div class="doms" data-r="doms"></div></div>'+
     '<div class="block" data-r="topicBlock"><p class="block__label">Onderwerpen <span class="block__hint">kies er één of meer</span></p><div class="forms" data-r="topics"></div><div class="tinybtns"><button class="tinybtn" data-r="tpAll" type="button">Alles aan</button><button class="tinybtn" data-r="tpNone" type="button">Alles uit</button></div></div>'+
@@ -1129,19 +1182,33 @@ function makeSettings(host, st, onChange){
   // graad
   $$(".chip",R("graad")).forEach(function(b){
     b.onclick=function(){
-      var g=parseInt(b.dataset.g,10);
-      if(g===st.graad) return;
-      st.graad=g;
+      var g=parseInt(b.dataset.g,10), j=parseInt(b.dataset.j,10)||0;
+      if(g===st.graad && j===(st.jaar||0)) return;
+      st.graad=g; st.jaar=(g===1? j : 0);
       /* bereik meteen passend zetten, zodat de leerkracht niets moet nastellen */
-      st.range = g===1? 20 : (g===2? 100 : 1000);
+      st.range = g===1? (j===1? 10 : 20) : (g===2? 100 : 1000);
       if(g===1) st.tables=[2,5,10];
       st.topics=[];
+      weerL1();
       ensureTopics(); syncAll(); onChange();
     };
   });
   function syncGraad(){
-    $$(".chip",R("graad")).forEach(function(b){ b.setAttribute("aria-pressed", parseInt(b.dataset.g,10)===st.graad); });
-    R("graadHint").textContent=GRAAD_LABEL[st.graad];
+    $$(".chip",R("graad")).forEach(function(b){
+      b.setAttribute("aria-pressed", parseInt(b.dataset.g,10)===st.graad &&
+                                     (parseInt(b.dataset.j,10)||0)===(st.jaar||0));
+    });
+    R("graadHint").textContent=niveauLabel(st.graad,st.jaar);
+  }
+  /* Zitten we niet in L1, dan horen de kleinste bereiken er ook niet te staan:
+     zet ze weg en kies iets passends, zodat er nooit een onzichtbare keuze
+     actief blijft. */
+  function inL1(){ return st.graad===1 && st.jaar===1; }
+  function weerL1(){
+    if(inL1()) return;
+    if(st.range===6 || st.range===10) st.range = (st.graad===1? 20 : (st.graad===2? 100 : 1000));
+    st.splits = (st.splits||[]).filter(function(v){ return !splitL1(v); });
+    if(!st.splits.length) st.splits=[10];
   }
 
   // domeinen
@@ -1215,21 +1282,39 @@ function makeSettings(host, st, onChange){
 
   // bereik
   RANGE_OPTS.forEach(function(o){
-    var b=chip(o.l,true); b.onclick=function(){ st.range=o.v; syncRange(); onChange(); }; R("range").appendChild(b);
+    var b=chip(o.l,true); b.dataset.v=o.v; if(o.l1) b.dataset.l1="1";
+    b.onclick=function(){ st.range=o.v; syncRange(); onChange(); };
+    R("range").appendChild(b);
   });
-  function syncRange(){ $$(".chip",R("range")).forEach(function(b,i){ b.setAttribute("aria-pressed", RANGE_OPTS[i].v===st.range); }); }
+  function syncRange(){
+    $$(".chip",R("range")).forEach(function(b){
+      b.classList.toggle("hidden", b.dataset.l1==="1" && !inL1());
+      b.setAttribute("aria-pressed", parseInt(b.dataset.v,10)===st.range);
+    });
+  }
 
   // splitsingen
   SPLIT_OPTS.forEach(function(v){
-    var b=chip(v); b.onclick=function(){
+    var b=chip(splitLabel(v), splitL1(v)); b.dataset.v=v;
+    b.onclick=function(){
       var idx=st.splits.indexOf(v); if(idx>-1) st.splits.splice(idx,1); else st.splits.push(v);
       if(!st.splits.length) st.splits.push(v); st.splits.sort(function(a,b){return a-b;});
       syncSplits(); onChange();
     }; R("splits").appendChild(b);
   });
-  R("spAll").onclick=function(){ st.splits=SPLIT_OPTS.slice(); syncSplits(); onChange(); };
+  /* "Alles" pakt alleen wat zichtbaar is: buiten L1 zijn tot 6 en tot 10 er niet. */
+  R("spAll").onclick=function(){
+    st.splits=SPLIT_OPTS.filter(function(v){ return inL1() || !splitL1(v); });
+    syncSplits(); onChange();
+  };
   R("spNone").onclick=function(){ st.splits=[10]; syncSplits(); onChange(); };
-  function syncSplits(){ $$(".chip",R("splits")).forEach(function(b){ b.setAttribute("aria-pressed", st.splits.indexOf(parseInt(b.textContent,10))>-1); }); }
+  function syncSplits(){
+    $$(".chip",R("splits")).forEach(function(b){
+      var v=parseInt(b.dataset.v,10);
+      b.classList.toggle("hidden", splitL1(v) && !inL1());
+      b.setAttribute("aria-pressed", st.splits.indexOf(v)>-1);
+    });
+  }
 
   // forms
   $$(".form-opt",R("forms")).forEach(function(b){
@@ -1288,9 +1373,10 @@ function makeSettings(host, st, onChange){
   }
   function syncAll(){ syncGraad(); syncDoms(); syncTopics(); syncOps(); syncTables(); syncRange(); syncSplits(); syncForms(); R("rest").setAttribute("aria-pressed",st.rest); syncTimes(); syncModes(); syncCounts(); refreshVis(); }
 
+  weerL1();
   ensureTopics();
   syncAll();
-  return { sync:function(){ ensureTopics(); syncAll(); } };
+  return { sync:function(){ weerL1(); ensureTopics(); syncAll(); } };
 }
 function formOpt(f,demo,title,sub){
   return '<button class="form-opt" data-f="'+f+'" type="button" aria-pressed="false">'+
@@ -1310,7 +1396,9 @@ var api={
   toggleSound:function(){ soundOn=!soundOn; var b=$("#soundBtn"); if(b) b.textContent=soundOn?"🔊":"🔈"; if(soundOn) ac(); return soundOn; },
   resumeAudio:ac,
   OPS:OPS, RANGE_OPTS:RANGE_OPTS, SPLIT_OPTS:SPLIT_OPTS, FORM_LABEL:FORM_LABEL,
+  SPLIT_TOT6:SPLIT_TOT6, SPLIT_TOT10:SPLIT_TOT10, splitLabel:splitLabel, splitL1:splitL1,
   DOMEINEN:DOMEINEN, domeinById:domeinById, GRAAD_LABEL:GRAAD_LABEL,
+  JAAR_LABEL:JAAR_LABEL, niveauLabel:niveauLabel,
   TOPICS:TOPICS, topicsFor:topicsFor, topicById:topicById, genAny:genAny,
   setSessieRonde:setSessieRonde, inSessie:inSessie, meldSessie:meldSessie
 };

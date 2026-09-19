@@ -62,6 +62,10 @@
       <h1 class="gen__title">Rekenkrak</h1>
       <p class="gen__sub">Maak een oefening op maat en deel ze met een QR-code of link.</p>
     </div>
+    <div class="gen__hulp">
+      <a class="hulpknop" href="handleiding.html#leerkracht">📘 Handleiding</a>
+      <button class="hulpknop" type="button" data-krak-melding>🐞 Meld een probleem</button>
+    </div>
   </header>
 
   <div class="layout">
@@ -182,6 +186,7 @@
 <script src="qrcode.js"></script>
 <script src="krak-config.js"></script>
 <script src="krak-sessie.js"></script>
+<script src="krak-melding.js"></script>
 <script src="engine.js"></script>
 <script>
 (function(){
@@ -229,7 +234,7 @@ var OPW={add:"+",sub:"−",mul:"×",div:"÷",split:"splitsen"};
 function summaryPills(){
   var box=$("#summary"); box.innerHTML="";
   function add(t){var s=document.createElement("span");s.className="pill";s.textContent=t;box.appendChild(s);}
-  add(MK.GRAAD_LABEL[state.graad]);
+  add(MK.niveauLabel(state.graad, state.jaar));
   add(MK.domeinById(state.domein).label);
   if(state.domein==="bew"){
     add("Bewerking: "+state.ops.map(function(o){return OPW[o];}).join(" "));
@@ -238,7 +243,7 @@ function summaryPills(){
     var hasSplit=state.ops.indexOf("split")>-1;
     if(hasMD) add("Tafels: "+state.tables.join(", "));
     if(hasAS) add("tot "+state.range);
-    if(hasSplit) add("Splitsen van "+state.splits.join(", "));
+    if(hasSplit) add("Splitsen van "+state.splits.map(MK.splitLabel).join(", "));
     if(!(hasSplit&&state.ops.length===1)) add(state.forms.map(function(f){return MK.FORM_LABEL[f];}).join(" · "));
     if(state.ops.indexOf("div")>-1 && state.rest) add("met rest");
     add(state.mode==="pad"?"Cijfers tikken":"Kiezen uit 4");
@@ -477,7 +482,7 @@ if(K){
   };
   $("#sesStart").onclick=function(){
     var knop=this; knop.disabled=true;
-    K.start("rekenkrak", MK.GRAAD_LABEL[state.graad])
+    K.start("rekenkrak", MK.niveauLabel(state.graad, state.jaar))
       .then(toonSessie)
       .catch(function(f){
         alert(f.message==="niet_aangemeld" ? "Meld je eerst aan om een sessie te starten."

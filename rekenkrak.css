@@ -395,3 +395,40 @@
 }
 .classbar .vraag{font-size:30px}
 .classbar .choice--tekst{font-size:26px;min-height:76px}
+
+
+/* ====== Speelscherm past altijd binnen het scherm (digibord) ======
+   Een digibord is vaak breed maar niet hoog (bv. 1366x768). De onderste rij
+   van het cijferklavier - met de 0 - viel daardoor half onder de schermrand,
+   zeker bij splitsingen, want die opgave is hoger dan een gewone som.
+   Alles schaalt nu mee met de beschikbare hoogte: er valt niets meer weg en
+   er hoeft nooit gescrold te worden. */
+.play{height:100dvh;min-height:100dvh;overflow:hidden}
+.stage{min-height:0;flex:1 1 auto;gap:clamp(10px,2.2dvh,26px);padding:8px 18px clamp(8px,2dvh,22px)}
+.ring{flex:0 1 auto;max-height:min(271px,30dvh)}
+.tile{height:clamp(52px,9dvh,74px)}
+.pad{gap:clamp(6px,1.1dvh,11px)}
+.key{height:clamp(42px,6.6dvh,62px)}
+.choice{height:clamp(52px,8dvh,78px)}
+.classbar{gap:clamp(8px,1.6dvh,16px)}
+.handprompt{padding:clamp(6px,1.1dvh,11px) 22px}
+.bigbtn{padding:clamp(10px,1.9dvh,18px) 16px}
+.eq--split .spl__lines{height:clamp(20px,3.2dvh,28px) !important}
+
+@media (min-width:900px) and (min-height:600px){
+  .classbar .key{min-height:clamp(46px,7.2dvh,74px)}
+  .classbar .bigbtn{min-height:clamp(46px,7dvh,64px)}
+  .eq .tile{height:clamp(56px,9.6dvh,84px)}
+  .eq--split .spl__lines{height:clamp(24px,3.6dvh,36px) !important}
+}
+
+/* ====== Hulp onderaan het startscherm en op de leerkrachtpagina ====== */
+.home__hulp{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:2px}
+.hulpknop{display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border-radius:14px;
+  background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow-sm);
+  font-weight:800;font-size:14.5px;color:inherit;text-decoration:none;line-height:1}
+.hulpknop:active{transform:translateY(1px)}
+.gen__hulp{display:flex;flex-wrap:wrap;gap:10px;margin-left:auto}
+@media(max-width:620px){.gen__hulp{margin:10px 0 0;width:100%}}
+.gen__hulp .hulpknop{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.25);color:#fff;
+  box-shadow:none}
