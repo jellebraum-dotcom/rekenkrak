@@ -1,9 +1,9 @@
 /* Rekenkrak service worker — app-shell cache voor offline gebruik */
-var CACHE = "rekenkrak-v7";
+var CACHE = "rekenkrak-v8";
 var ASSETS = [
-  "./", "index.html", "leerkracht.html", "rekenkrak.css",
+  "./", "index.html", "leerkracht.html", "handleiding.html", "rekenkrak.css",
   "engine.js", "jsqr.js", "qrcode.js", "manifest.webmanifest",
-  "krak-config.js", "krak-sessie.js",
+  "krak-config.js", "krak-sessie.js", "krak-melding.js",
   "icon-192.png", "icon-512.png", "icon-512-maskable.png", "apple-touch-icon.png"
 ];
 self.addEventListener("install", function(e){
@@ -14,12 +14,16 @@ self.addEventListener("activate", function(e){
     return Promise.all(keys.filter(function(k){ return k!==CACHE; }).map(function(k){ return caches.delete(k); }));
   }).then(function(){ return self.clients.claim(); }));
 });
+/* Uit de cache voor snelheid en offline gebruik, maar op de achtergrond wordt
+   elk bestand opnieuw opgehaald. Een volgende keer openen toont dus de nieuwe
+   versie, ook zonder de cachenaam te verhogen. */
 self.addEventListener("fetch", function(e){
   if(e.request.method!=="GET") return;
   e.respondWith(caches.match(e.request).then(function(hit){
-    return hit || fetch(e.request).then(function(resp){
+    var vers = fetch(e.request).then(function(resp){
       try{ if(resp && resp.status===200 && new URL(e.request.url).origin===location.origin){ var copy=resp.clone(); caches.open(CACHE).then(function(c){ c.put(e.request, copy); }); } }catch(_){}
       return resp;
-    }).catch(function(){ return caches.match("./"); });
+    }).catch(function(){ return hit || caches.match("./"); });
+    return hit || vers;
   }));
 });
