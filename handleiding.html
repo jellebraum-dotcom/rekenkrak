@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rekenkrak · handleiding</title>
+<link rel="stylesheet" href="rekenkrak.css">
+<meta name="color-scheme" content="only light">
+<meta name="theme-color" content="#FFC233">
+<meta name="description" content="Zo werkt Rekenkrak — voor leerlingen en voor leerkrachten.">
+<style>
+/* De handleiding leunt op rekenkrak.css en voegt alleen toe wat ze zelf nodig heeft. */
+.hl{max-width:900px;margin:0 auto;padding:22px 18px 70px}
+.hl__head{display:flex;align-items:center;gap:15px;margin:2px 0 6px}
+.hl__head .logo{width:58px;height:58px}
+.hl__titel{font-size:clamp(26px,5vw,36px);font-weight:800;letter-spacing:-.025em;margin:0;line-height:1.05}
+.hl__sub{margin:4px 0 0;color:var(--ink-soft);font-weight:600;font-size:15px}
+.hl__terug{display:inline-flex;align-items:center;gap:8px;margin:18px 0 20px;padding:10px 16px;
+  border-radius:14px;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow-sm);
+  font-weight:800;font-size:15px;color:inherit;text-decoration:none}
+.hl__terug:active{transform:translateY(1px)}
+
+/* wie ben je? */
+.hl__wie{display:grid;grid-template-columns:1fr;gap:12px;margin:6px 0 26px}
+@media(min-width:620px){.hl__wie{grid-template-columns:1fr 1fr}}
+.wiekaart{display:flex;align-items:center;gap:15px;text-align:left;width:100%;padding:18px 20px;
+  border-radius:22px;background:var(--card);border:2px solid var(--line);box-shadow:var(--shadow);
+  transition:transform .1s,border-color .15s}
+.wiekaart:active{transform:translateY(2px) scale(.995)}
+.wiekaart[aria-pressed="true"]{border-color:var(--sun-deep);background:#FFFBF0}
+.wiekaart__ic{width:56px;height:56px;border-radius:17px;flex:none;display:grid;place-items:center;font-size:29px;background:#EAF7EE}
+.wiekaart--lk .wiekaart__ic{background:#F3EEFA}
+.wiekaart__tx b{display:block;font-size:18px;font-weight:800;line-height:1.15}
+.wiekaart__tx span{display:block;font-size:13.5px;color:var(--ink-soft);font-weight:600;margin-top:2px}
+
+/* inhoud */
+.deel[hidden]{display:none}
+.hl h2{font-size:clamp(21px,3.6vw,26px);font-weight:800;letter-spacing:-.02em;margin:34px 0 4px;
+  scroll-margin-top:16px}
+.hl h2:first-of-type{margin-top:10px}
+.hl h3{font-size:17.5px;font-weight:800;margin:20px 0 6px}
+.hl p{line-height:1.6;font-size:15.5px;margin:8px 0}
+.hl ul,.hl ol{line-height:1.6;font-size:15.5px;padding-left:22px;margin:8px 0}
+.hl li{margin:5px 0}
+.hl b,.hl strong{font-weight:800}
+
+.kaart{background:var(--card);border:1px solid var(--line);border-radius:var(--round);
+  box-shadow:var(--shadow-sm);padding:16px 18px;margin:14px 0}
+.kaart--tip{background:#FFFBF0;border-color:#F2DFAE}
+.kaart--let{background:#F3EEFA;border-color:#DDD1EE}
+.kaart__kop{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;margin:0 0 4px}
+.kaart p:last-child,.kaart ul:last-child,.kaart ol:last-child{margin-bottom:0}
+
+.stappen{list-style:none;padding:0;margin:14px 0;counter-reset:s}
+.stappen li{counter-increment:s;position:relative;padding:14px 16px 14px 62px;margin:10px 0;
+  background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow-sm);
+  font-size:15.5px;line-height:1.55}
+.stappen li::before{content:counter(s);position:absolute;left:16px;top:13px;width:32px;height:32px;
+  border-radius:11px;background:linear-gradient(150deg,var(--sun),var(--sun-deep));color:#fff;
+  font-weight:800;font-size:17px;display:grid;place-items:center}
+.stappen li b{display:block;margin-bottom:2px}
+
+.tabel{width:100%;border-collapse:collapse;margin:12px 0;font-size:15px;display:block;overflow-x:auto}
+.tabel th,.tabel td{text-align:left;padding:10px 14px 10px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.tabel th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-weight:800}
+.tabel td:first-child{font-weight:800;white-space:nowrap;padding-right:20px}
+
+.merk{display:inline-block;background:#F2EADB;border-radius:8px;padding:1px 8px;font-weight:800;font-size:14px;
+  white-space:nowrap}
+.merk--l1{background:#EAF7EE;color:var(--grass-deep)}
+.merk--nieuw{background:#FDEDEF;color:var(--berry-deep)}
+
+.toets{display:inline-grid;place-items:center;min-width:34px;height:34px;padding:0 8px;border-radius:10px;
+  background:#fff;border:1px solid var(--line);box-shadow:var(--shadow-sm);font-weight:800;font-size:16px;
+  vertical-align:middle}
+
+.vraag{border-top:1px solid var(--line);padding:12px 0}
+.vraag summary{cursor:pointer;font-weight:800;font-size:16px;padding:2px 0;list-style:none}
+.vraag summary::-webkit-details-marker{display:none}
+.vraag summary::before{content:"▸";display:inline-block;width:20px;color:var(--sun-deep);
+  transition:transform .15s}
+.vraag[open] summary::before{transform:rotate(90deg)}
+.vraag p{margin:6px 0 2px 20px}
+
+.voet{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;
+  gap:12px;align-items:center;justify-content:space-between}
+.voet__tx{font-size:14px;color:var(--ink-soft);font-weight:600;margin:0}
+
+@media print{
+  .hl__wie,.hl__terug,.voet button{display:none}
+  .deel[hidden]{display:block !important}
+  .kaart,.stappen li{box-shadow:none}
+}
+</style>
+</head>
+<body>
+
+<main class="hl">
+
+  <header class="hl__head">
+    <div class="logo" aria-hidden="true"></div>
+    <div>
+      <h1 class="hl__titel">Zo werkt Rekenkrak</h1>
+      <p class="hl__sub">Een korte rondleiding — kies hieronder voor wie.</p>
+    </div>
+  </header>
+
+  <a class="hl__terug" href="index.html">← Terug naar Rekenkrak</a>
+
+  <div class="hl__wie" role="group" aria-label="Voor wie is deze handleiding?">
+    <button class="wiekaart wiekaart--ll" id="wieLeerling" type="button" aria-pressed="true" aria-controls="deelLeerling">
+      <span class="wiekaart__ic" aria-hidden="true">🧒</span>
+      <span class="wiekaart__tx"><b>Ik ben leerling</b><span>In één minuut weet je hoe het werkt</span></span>
+    </button>
+    <button class="wiekaart wiekaart--lk" id="wieLeerkracht" type="button" aria-pressed="false" aria-controls="deelLeerkracht">
+      <span class="wiekaart__ic" aria-hidden="true">👩‍🏫</span>
+      <span class="wiekaart__tx"><b>Ik ben leerkracht</b><span>Alles over oefeningen, QR-codes en de klas</span></span>
+    </button>
+  </div>
+
+  <!-- ============================ LEERLINGEN ============================ -->
+  <section class="deel" id="deelLeerling" aria-labelledby="wieLeerling">
+
+    <h2 id="ll-start">Zo begin je</h2>
+    <p>Er zijn drie manieren. Welke je kiest, hangt af van wat je juf of meester zegt.</p>
+
+    <ol class="stappen">
+      <li><b>🔢 Zelf oefenen</b>
+        Jij kiest wat je wil oefenen: plus, min, keer, gedeeld of splitsen. Daarna druk je op
+        <b>▶ Starten</b>. Handig om thuis of alleen te oefenen.</li>
+      <li><b>👩‍🏫 Doe mee met de klas</b>
+        Je juf of meester toont een code van vier letters. Tik die in, vul je voornaam in en druk op
+        <b>Doe mee</b>. Daarna wacht je tot de oefening begint — dat gaat vanzelf.</li>
+      <li><b>📷 Scan een QR-code</b>
+        Richt je tablet of gsm op de QR-code op het bord. De juiste oefening opent meteen.
+        Geef je toestel wel toestemming voor de camera.</li>
+    </ol>
+
+    <h2 id="ll-spelen">Zo los je een som op</h2>
+
+    <div class="kaart">
+      <p class="kaart__kop">⌨️ Cijfers tikken</p>
+      <p>Tik het antwoord met de cijfertoetsen. <b>Je hoeft niet op de groene ✓ te drukken</b>:
+        zodra je antwoord volledig is, kijkt de app het vanzelf na. Vergist? Met
+        <span class="toets">⌫</span> wis je het laatste cijfer.</p>
+    </div>
+
+    <div class="kaart">
+      <p class="kaart__kop">👉 Kiezen uit 4</p>
+      <p>Soms zet de juf of meester vier knoppen klaar. Dan tik je gewoon het juiste antwoord aan.</p>
+    </div>
+
+    <div class="kaart">
+      <p class="kaart__kop">⌂ Splitsen</p>
+      <p>Bovenaan staat het getal, eronder de twee benen van het splitshuisje. Eén been is ingevuld,
+        het andere zoek jij. Tik dat getal in.</p>
+    </div>
+
+    <div class="kaart">
+      <p class="kaart__kop">÷ Delen met rest</p>
+      <p>Er zijn twee vakjes: eerst het antwoord, dan de rest. Als het eerste vakje vol is,
+        springt de app zelf naar het vakje van de rest. Je hoeft niets te klikken.</p>
+    </div>
+
+    <h2 id="ll-scherm">Wat zie je op het scherm?</h2>
+    <table class="tabel">
+      <tr><th>Wat</th><th>Wat het betekent</th></tr>
+      <tr><td>★ met een getal</td><td>Je sterren: hoeveel sommen je al juist had.</td></tr>
+      <tr><td>De blauwe balk</td><td>Hoe ver je al bent in de reeks.</td></tr>
+      <tr><td>🔊</td><td>Geluid aan of uit. Handig in de klas.</td></tr>
+      <tr><td>✕</td><td>Stoppen en terug naar het begin.</td></tr>
+      <tr><td>Het scherm gloeit oranje</td><td>Nog vijf seconden — er staat een tijd per som ingesteld.</td></tr>
+    </table>
+
+    <h2 id="ll-einde">Op het einde</h2>
+    <p>Je krijgt een medaille, je score en een <b>overzicht van de hele reeks</b>. Bij elke som die
+      fout was, zie je meteen wat jij antwoordde en wat het juiste antwoord was. Precies die
+      sommen zijn het waard om nog eens te oefenen.</p>
+
+    <div class="kaart kaart--tip">
+      <p class="kaart__kop">💡 Een tip</p>
+      <p>Fout antwoorden hoort erbij — daar leer je net van. Kijk na je reeks even naar het overzicht
+        en probeer die sommen daarna opnieuw. Zo word je vanzelf een krak.</p>
+    </div>
+
+  </section>
+
+  <!-- ============================ LEERKRACHTEN ============================ -->
+  <section class="deel" id="deelLeerkracht" hidden aria-labelledby="wieLeerkracht">
+
+    <h2 id="lk-kort">In het kort</h2>
+    <p>Rekenkrak heeft twee pagina's. De <b>leerlingapp</b> (<code>index.html</code>) is wat de kinderen
+      zien. De <b>leerkrachtpagina</b> (<code>leerkracht.html</code>) is jouw werkplek: daar stel je een
+      oefening samen, deel je ze, en volg je de klas.</p>
+
+    <div class="kaart">
+      <p class="kaart__kop">🎯 Drie manieren om te werken</p>
+      <ul>
+        <li><b>Een oefening delen</b> — je stelt iets samen en geeft de QR-code of de link mee. Kinderen
+          oefenen zelfstandig, op hun eigen tempo. Geen account nodig.</li>
+        <li><b>Samen oefenen op het digibord</b> — één som tegelijk, groot in beeld, de klas denkt mee.</li>
+        <li><b>Een live sessie</b> — je stuurt oefening na oefening naar de klas en volgt live wie waar zit.
+          Hiervoor meld jij je aan; de leerlingen niet.</li>
+      </ul>
+    </div>
+
+    <h2 id="lk-oefening">Een oefening samenstellen</h2>
+    <p>Alles gebeurt in de linkerkolom van de leerkrachtpagina. Je hoeft niets op te slaan: de QR-code
+      en de link rechts veranderen mee terwijl je klikt.</p>
+
+    <h3>Oefenmodus</h3>
+    <p><b>🧒 Zelf oefenen</b> maakt een oefening voor op een tablet of gsm. <b>👩‍🏫 Samen oefenen</b> maakt
+      er een digibordversie van: grote cijfers, één som per keer, en een knop <i>Toon antwoord</i>.</p>
+
+    <h3>Leerjaar en graad</h3>
+    <p>De eerste keuze bepaalt meteen een passend bereik, zodat je zelden iets moet bijstellen.</p>
+    <table class="tabel">
+      <tr><th>Keuze</th><th>Voor wie</th><th>Wat het instelt</th></tr>
+      <tr><td><span class="merk merk--l1">L1</span></td><td>Eerste leerjaar</td><td>Getallen tot 10, tafels 2·5·10</td></tr>
+      <tr><td><span class="merk merk--l1">L2</span></td><td>Tweede leerjaar</td><td>Getallen tot 20, tafels 2·5·10</td></tr>
+      <tr><td><span class="merk">2e graad</span></td><td>L3 – L4</td><td>Getallen tot 100</td></tr>
+      <tr><td><span class="merk">3e graad</span></td><td>L5 – L6</td><td>Getallen tot 1000</td></tr>
+    </table>
+    <div class="kaart kaart--tip">
+      <p class="kaart__kop">🆕 Nieuw voor het eerste leerjaar</p>
+      <p>Bij <b>L1</b> verschijnen er twee extra keuzes die je elders niet ziet: een bereik
+        <span class="merk merk--nieuw">tot 6</span> en <span class="merk merk--nieuw">tot 10</span> bij
+        plus en min, en dezelfde twee bij het splitsen. Splitsen <i>tot 6</i> of <i>tot 10</i> splitst
+        telkens een willekeurig getal in dat bereik — precies de oefening van het begin van L1.
+        Kies je een ander leerjaar, dan verdwijnen die opties en zet de app het bereik weer passend.</p>
+    </div>
+
+    <h3>Onderdeel en onderwerpen</h3>
+    <p>Kies één van de vijf leergebieden. Bij <b>Bewerkingen</b> stel je zelf de sommen samen; bij de vier
+      andere vink je onderwerpen aan uit de leerlijn van die graad.</p>
+    <table class="tabel">
+      <tr><th>Onderdeel</th><th>Wat je erin vindt</th></tr>
+      <tr><td>+−×÷ Bewerkingen</td><td>Plus, min, keer, gedeeld en splitsen</td></tr>
+      <tr><td>123 Getallenkennis</td><td>Buurgetallen, ordenen, plaatswaarde, even of oneven, afronden, deelbaarheid</td></tr>
+      <tr><td>½ Breuken &amp; komma</td><td>Deel van een getal, gelijkwaardige breuken, kommagetallen, procent, verhoudingen</td></tr>
+      <tr><td>📏 Meten</td><td>Geld, lengte, gewicht, inhoud, tijd, omtrek, oppervlakte, volume, schaal</td></tr>
+      <tr><td>△ Meetkunde</td><td>Vormen, zijden en hoeken, soorten hoeken, ruimtefiguren, symmetrie, driehoeken</td></tr>
+    </table>
+    <p>Staat er «voor deze graad zit dit onderdeel nog niet in de leerlijn», kies dan een andere graad
+      of een ander onderdeel. Met <b>Alles aan</b> en <b>Alles uit</b> vink je snel.</p>
+
+    <h3>De instellingen bij Bewerkingen</h3>
+    <table class="tabel">
+      <tr><th>Instelling</th><th>Wat het doet</th></tr>
+      <tr><td>Bewerkingen</td><td>+ − × ÷ en splitsen. Meerdere tegelijk mag: de reeks mengt ze dan.</td></tr>
+      <tr><td>Maaltafels</td><td>Welke tafels bij × en ÷ aan bod komen. Verschijnt alleen als × of ÷ aanstaat.</td></tr>
+      <tr><td>Getallenbereik</td><td>Hoe groot de getallen bij + en − worden. <span class="merk merk--l1">tot 6</span> en <span class="merk merk--l1">tot 10</span> enkel bij L1.</td></tr>
+      <tr><td>Splitsen van</td><td>Welke getallen gesplitst worden. Meerdere mag. <span class="merk merk--l1">tot 6</span> en <span class="merk merk--l1">tot 10</span> enkel bij L1.</td></tr>
+      <tr><td>Soorten sommen</td><td>Waar het vraagteken staat: <i>5 × 7 = ?</i>, <i>? × 7 = 35</i> of <i>5 × ? = 35</i>.</td></tr>
+      <tr><td>Delen met rest</td><td>Sommen als <i>38 ÷ 7 = 5 rest 3</i>. Dan kan «kiezen uit 4» niet meer.</td></tr>
+      <tr><td>Tijd per som</td><td>Geen, of 3 tot 20 seconden. Het scherm gloeit de laatste vijf seconden op.</td></tr>
+      <tr><td>Hoe antwoorden</td><td>Cijfers tikken, of kiezen uit vier knoppen.</td></tr>
+      <tr><td>Aantal sommen</td><td>5, 10, 15, 20 of ∞ (blijft doorgaan tot je stopt).</td></tr>
+    </table>
+
+    <div class="kaart kaart--tip">
+      <p class="kaart__kop">⏱️ Over de tijd per som</p>
+      <p><b>3 seconden</b> is de klassieke instelling voor de maaltafels van het tweede leerjaar: dat is
+        het tempo waarop de eindtermen automatisering verwachten. Voor bewerkingen waar kinderen nog
+        mogen redeneren, zet je de tijd beter op <i>Geen</i>.</p>
+    </div>
+
+    <h2 id="lk-delen">De oefening delen</h2>
+    <ol class="stappen">
+      <li><b>QR-code</b>
+        Toon hem op het digibord, of druk hem af met <b>🖨️ QR afdrukken</b> — handig als hoekwerk
+        of om mee te geven naar huis.</li>
+      <li><b>Link</b>
+        Met <b>Kopieer</b> heb je de link voor je digitaal leerplatform of een e-mail naar de ouders.
+        Alle instellingen zitten in de link zelf; er wordt niets op een server bewaard.</li>
+      <li><b>Eerst zelf proberen</b>
+        Met <b>▶ Probeer zelf</b> speel je de oefening zoals een kind ze krijgt. Zo merk je meteen of
+        ze te makkelijk of te moeilijk is.</li>
+    </ol>
+    <p>Het vak <i>Samenvatting</i> onder de QR-code vat in één regel samen wat je gekozen hebt.
+      Handig om snel te controleren vóór je deelt.</p>
+
+    <h2 id="lk-samen">Samen oefenen op het digibord</h2>
+    <p>Kies bij <b>Oefenmodus</b> voor <b>👩‍🏫 Samen oefenen</b> en druk op <b>▶ Probeer zelf</b>. Je krijgt
+      één som groot in beeld.</p>
+    <ul>
+      <li>Een kind komt naar het bord en tikt het antwoord in — het klavier is groot genoeg voor vingers.</li>
+      <li>Is het fout, dan mag de klas verder zoeken: de som blijft staan.</li>
+      <li><b>Toon antwoord</b> geeft het antwoord prijs en zet meteen de knop <b>Volgende som</b> klaar.</li>
+      <li>Met <b>←</b> ga je terug naar de vorige som.</li>
+      <li>Op het toetsenbord: cijfers om in te tikken, <span class="toets">Enter</span> om na te kijken,
+        <span class="toets">→</span> of <span class="toets">spatie</span> voor de volgende som.</li>
+    </ul>
+
+    <h2 id="lk-sessie">Een live sessie</h2>
+    <p>Met een live sessie stuur je oefening na oefening naar alle toestellen tegelijk, en zie je meteen
+      wie klaar is en waar het misloopt.</p>
+    <ol class="stappen">
+      <li><b>Meld je aan</b>
+        Met Google of Microsoft, rechtsboven bij <i>Live sessie</i>. Alleen jij ziet zo jouw sessies.
+        <b>De leerlingen hebben geen account nodig.</b></li>
+      <li><b>Start de sessie</b>
+        Je krijgt een code van vier letters. Toon die op het bord.</li>
+      <li><b>De klas sluit aan</b>
+        De kinderen kiezen <i>Doe mee met de klas</i>, tikken de code in en geven hun voornaam.
+        Ze komen in een wachtkamer terecht.</li>
+      <li><b>Zet een oefening klaar</b>
+        Stel links iets samen en druk op <b>▶ Zet deze oefening klaar</b>. Alle toestellen schakelen
+        binnen enkele seconden mee over. Zo veel rondes als je wil, elk met andere instellingen.</li>
+      <li><b>Volg mee</b>
+        Onderaan zie je per ronde wie meedoet, hoeveel elk kind juist had, en welke sommen fout gingen.</li>
+      <li><b>Bewaar de link</b>
+        Met de link onder de code bekijk je deze sessie later terug, op eender welk toestel.
+        De resultaten blijven dertig dagen bewaard.</li>
+    </ol>
+
+    <div class="kaart kaart--let">
+      <p class="kaart__kop">🔒 Over de gegevens van de kinderen</p>
+      <p>Er wordt enkel de <b>voornaam</b> gevraagd die het kind zelf intikt, samen met het aantal juiste
+        antwoorden en welke sommen fout gingen. Geen achternamen, geen e-mailadressen, geen accounts.
+        Na dertig dagen verdwijnen de resultaten vanzelf.</p>
+    </div>
+
+    <h2 id="lk-vragen">Veelgestelde vragen</h2>
+
+    <details class="vraag">
+      <summary>Moeten de leerlingen iets installeren?</summary>
+      <p>Nee. Rekenkrak draait in de browser. Op een tablet of gsm kan je de app wel aan het
+        beginscherm toevoegen — dan opent ze als een gewone app, zonder adresbalk.</p>
+    </details>
+
+    <details class="vraag">
+      <summary>Werkt het zonder internet?</summary>
+      <p>Oefenen wel, zodra de pagina één keer geladen is. Een live sessie niet: daarvoor moeten de
+        toestellen online zijn.</p>
+    </details>
+
+    <details class="vraag">
+      <summary>Een kind kan niet terug naar het hoofdmenu.</summary>
+      <p>Dat klopt en is met opzet: bij een oefening die jij deelde, verschijnt de knop ✕ pas als de
+        reeks af is. Zo blijft niemand halverwege afhaken. Bij ∞ blijft de knop wél staan, anders kan
+        een kind nooit stoppen.</p>
+    </details>
+
+    <details class="vraag">
+      <summary>De QR-code wordt niet herkend.</summary>
+      <p>Houd het toestel wat verder van het bord en zorg voor rustig licht — een digibord weerspiegelt
+        snel. Lukt het niet, geef dan de link door of gebruik de klascode.</p>
+    </details>
+
+    <details class="vraag">
+      <summary>Kan ik dezelfde oefening elk jaar opnieuw gebruiken?</summary>
+      <p>Ja. Alle instellingen zitten in de link, dus een bewaarde link of afgedrukte QR-code blijft
+        werken. De sommen zelf worden elke keer opnieuw en willekeurig gemaakt.</p>
+    </details>
+
+    <details class="vraag">
+      <summary>Komt dezelfde som twee keer voor in één reeks?</summary>
+      <p>Alleen als er te weinig verschillende sommen mogelijk zijn voor wat je koos — bij één
+        maaltafel en twintig sommen bijvoorbeeld. Twee keer na elkaar gebeurt nooit.</p>
+    </details>
+
+    <div class="kaart kaart--tip" style="margin-top:26px">
+      <p class="kaart__kop">🐞 Loopt er iets mis?</p>
+      <p>Gebruik de knop <b>Meld een probleem</b> onderaan deze pagina of op het startscherm van de app.
+        Een schermafbeelding erbij helpt enorm: plak ze gewoon in het tekstvak met Ctrl+V.</p>
+    </div>
+
+  </section>
+
+  <div class="voet">
+    <p class="voet__tx">Rekenkrak · oefenkrak.be</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn--ghost" type="button" data-krak-melding>🐞 Meld een probleem</button>
+      <a class="btn btn--sun" href="index.html">Naar de app</a>
+    </div>
+  </div>
+
+</main>
+
+<script src="krak-config.js"></script>
+<script src="krak-melding.js"></script>
+<script>
+(function(){
+  "use strict";
+  var knoppen = { leerling: document.getElementById("wieLeerling"),
+                  leerkracht: document.getElementById("wieLeerkracht") };
+  var delen   = { leerling: document.getElementById("deelLeerling"),
+                  leerkracht: document.getElementById("deelLeerkracht") };
+
+  function toon(wie, onthouden){
+    Object.keys(delen).forEach(function(k){
+      delen[k].hidden = (k !== wie);
+      knoppen[k].setAttribute("aria-pressed", k === wie);
+    });
+    if(onthouden){
+      try{ localStorage.setItem("krak.handleiding", wie); }catch(e){}
+      if(location.hash !== "#"+wie){
+        try{ history.replaceState(null, "", "#"+wie); }catch(e){}
+      }
+    }
+  }
+  knoppen.leerling.onclick   = function(){ toon("leerling", true); };
+  knoppen.leerkracht.onclick = function(){ toon("leerkracht", true); };
+
+  /* Meteen het juiste deel: uit de link (#leerkracht), anders wat je vorige keer koos. */
+  var uitLink = (location.hash || "").replace("#","");
+  var bewaard = null;
+  try{ bewaard = localStorage.getItem("krak.handleiding"); }catch(e){}
+  toon(delen[uitLink] ? uitLink : (delen[bewaard] ? bewaard : "leerling"), false);
+
+  /* De meldknop hoort bij deze app. */
+  window.KRAK_MELDING = Object.assign({ app:"rekenkrak" }, window.KRAK_MELDING||{});
+})();
+</script>
+
+</body>
+</html>
