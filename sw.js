@@ -1,7 +1,7 @@
 /* Rekenkrak service worker — app-shell cache voor offline gebruik */
-var CACHE = "rekenkrak-v8";
+var CACHE = "rekenkrak-v9";
 var ASSETS = [
-  "./", "index.html", "leerkracht.html", "handleiding.html", "rekenkrak.css",
+  "./", "index.html", "leerkracht.html", "handleiding.html", "rekenkrak.css", "krak-design.css", "fonts/nunito.woff2", "fonts/fredoka.woff2",
   "engine.js", "jsqr.js", "qrcode.js", "manifest.webmanifest",
   "krak-config.js", "krak-sessie.js", "krak-melding.js",
   "icon-192.png", "icon-512.png", "icon-512-maskable.png", "apple-touch-icon.png"
