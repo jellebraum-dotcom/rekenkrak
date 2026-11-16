@@ -406,6 +406,10 @@
 .play{height:100dvh;min-height:100dvh;overflow:hidden}
 .stage{min-height:0;flex:1 1 auto;gap:clamp(10px,2.2dvh,26px);padding:8px 18px clamp(8px,2dvh,22px)}
 .ring{flex:0 1 auto;max-height:min(271px,30dvh)}
+/* De groene tijdsring is weggehaald: op lage schermen werd hij smaller dan
+   een vraag in woorden en liep hij dwars door de tekst. De timer zelf blijft
+   werken; de gloed en het tikgeluid geven nog aan dat de tijd bijna om is. */
+.ring > svg{display:none}
 .tile{height:clamp(52px,9dvh,74px)}
 .pad{gap:clamp(6px,1.1dvh,11px)}
 .key{height:clamp(42px,6.6dvh,62px)}
